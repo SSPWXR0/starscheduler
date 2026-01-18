@@ -42,25 +42,30 @@ StarScheduler is a comprehensive control and scheduling application designed for
     ```bash
     bash requirements.sh
     ```
+    
+    im smart lol just give me the dependencies:
+    ```bash
+    pip install -r requirements.txt
+    ```
 
 ## Usage
 
 Run the main application:
 
-    All systems:
-```bash
-python main.py
-```
+- **All systems:**
+  ```bash
+  python main.py
+  ```
 
-    Windows, detaching from command prompt:
-```bash
-    startd.cmd
-```
+- **Windows** (detaching from command prompt):
+  ```bash
+  startd.cmd
+  ```
 
-    Linux, MacOS, and FreeBSD detaching from terminal:
-```bash
-    bash startd.sh
-```
+- **Linux, macOS, and FreeBSD** (detaching from terminal):
+  ```bash
+  bash startd.sh
+  ```
 
 ### Command Line Arguments
 
