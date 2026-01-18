@@ -1,0 +1,45 @@
+{
+    "system": {
+        "logLevel": "INFO",
+        "cancelPresentationsOnExit": true,
+        "logSTDOUT": true
+    },
+    "outputs": [
+        {
+            "star": "i2xd",
+            "displayName": "IntelliStar 2 xD",
+            "protocol": "ssh",
+            "credentials": {
+                "hostname": "172.16.1.31",
+                "user": "rai",
+                "su": null,
+                "password": "sspwxr",
+                "port": 22
+            }
+        },
+        {
+            "star": "i2jr",
+            "displayName": "IntelliStar 2 Jr",
+            "protocol": "ssh",
+            "credentials": {
+                "hostname": "172.16.1.32",
+                "user": "rai",
+                "su": null,
+                "password": "sspwxr",
+                "port": 22
+            }
+        },
+        {
+            "star": "i1",
+            "protocol": "ssh",
+            "displayName": "IntelliStar 1",
+            "credentials": {
+                "hostname": "172.16.1.39",
+                "user": "root",
+                "su": "dgadmin",
+                "password": "i1root",
+                "port": 22
+            }
+        }
+    ]
+}

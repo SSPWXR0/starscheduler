@@ -1,0 +1,1044 @@
+exec -help [-xml | -text | -xsl: <xsl-file> ] [<regex-filter>] [-config: <config-file>]
+exec [-async] <work-request>[(params)], e.g. loadPres(Flavor=K) [-config: <config-file>]
+
+ClearANF Job:
+Clear all ANF state flags, set IRD to primary channel.
+Work Request(s):
+                clearANF()  [HighPriorityData]
+
+
+Store copy split:
+Stores copy split files to specified location
+
+Arguments:
+                File   String   File.
+                FileName   String   File Name. Name of the file on the filesys.
+                Location   String   Location. Absolute path where the file is to be stored. 
+
+Work Request(s):
+                storeMediaFile()  [RoutineImage]
+
+
+Bulletin Job:
+Build/Rebuild playlist to scroll active bulletins.
+
+Arguments:
+                Startup   Boolean   Executioner Startup Job
+
+Work Request(s):
+                bulletinJob()  [HighPriorityData]
+
+
+Test Bulletins:
+Run the Bulletin Tester.
+
+Arguments:
+                Duration   Int32   Duration (minutes)
+                BulletinType   String   Type
+
+Work Request(s):
+                runBulletinTester()  [RoutineData]
+
+
+Test Text-To-Speech:
+Translate text to spoken-word audio file.
+
+Arguments:
+                ApplyRules   Boolean   ApplyRules
+                Beep   Boolean   Beep
+                Text   String   Text
+
+Work Request(s):
+                testTextToSpeechJob()  [RoutineData]
+
+
+Test Copysplit:
+Send a copysplit file to the T2 offline decoder.
+
+Arguments:
+                Repeat   Int32   Number of times to loop playback.
+                PlaylistId   String   Copysplit playlist id.
+                DurationFrames   Int32   Copysplit play duration frames.
+                DurationSeconds   Int32   Copysplit play duration seconds.
+                StartFrame   Int32   Copysplit start frame.
+                StartTime   String   Copysplit start time.
+                File   String   File or list of files separated by | character to enqueue into the board.
+
+Work Request(s):
+                testCopysplit()  [HighPriority]
+
+
+XML File Viewer:
+Dumps the contents of an XML file to the Remote Management screen.  QueueName is not required
+
+Arguments:
+                Path   String   Path of the XML file to open.
+
+Work Request(s):
+                xmlFileViewerJob()  [Background]
+
+
+Log Message:
+logs a message to the log file.
+
+Arguments:
+                Message   String   The message to log.
+
+Work Request(s):
+                logMessage()  [Background] 
+
+
+Test:
+Test job that logs the fact that it is running.
+
+Arguments:
+                Floatval   Double   Float value.
+                Intval   Int32   Integer value.
+                Doom   Boolean   Boolean value.
+                Booga   String   String value.
+                Wait   Int32   Time to sleep.
+
+Work Request(s):
+                test()  [RoutineData]
+
+
+Reprocess BERecords:
+Generate DerivedBECraws, DerivedBEHeadline, and DerivedBEMarine based on previously saved DerivedBERecords
+Work Request(s):
+                reProcessBERecordsJob()  [StarBundle]
+
+
+Cancel Playlist:
+Cancels a playlist which has been loaded or is running in the RenderController.
+
+Arguments:
+                State   String   State.
+                StartTime   String   Start Time.
+                PresentationId   String   Presentation Id.
+
+Work Request(s):
+                cancelPres()  [HighPriority]
+
+
+Load Playlist:
+Creates a playlist using the PlaylistBuilder which is then loaded into the RenderController.
+
+Arguments:
+                Iteration   Int32   Iteration.
+                TagInstanceId   String   TagInstanceId.
+                Logo   String   Logo.
+                Duration   Int32   Duration of the Presentation.
+                PresentationId   String   Id of the Playlist.
+                Flavor   String   Flavor.
+
+Work Request(s):
+                loadPres()  [HighPriority]
+
+
+Run Playlist:
+Runs a playlist with the RenderController.
+
+Arguments:
+                StartTime   String   Start Time.
+                PresentationId   String   Presentation Id.
+
+Work Request(s):
+                runPres()  [HighPriority]
+
+
+Load and Run Playlist:
+Creates a playlist using the PlaylistBuilder which is then loaded into the RenderController and Runs
+
+Arguments:
+                Iteration   Int32   Iteration
+                PreRoll   String   PreRoll
+                TagInstanceId   String   TagInstanceId.
+                Logo   String   Logo.
+                Duration   Int32   Duration of the Presentation.
+                PresentationId   String   Id of the Playlist.
+                Flavor   String   Flavor.
+
+Work Request(s):
+                loadRunPres()  [HighPriority]
+
+
+Test Local:
+This job will run a 2 minute local with flavor M
+Work Request(s):
+                testLocalJob()  [HighPriority]
+
+
+Test Ldl:
+This job will run a 2 minute lower display line with flavor C.
+Work Request(s):
+                testLdlJob()  [HighPriority] 
+
+
+Execute RenderScript.:
+Send render-script file to RenderController for execution.  Dynamic playlist logic is bypassed.
+
+Arguments:
+                File   String   The render-script file to run.
+
+Work Request(s):
+                runRenderScript()  [HighPriority]
+
+
+Execute UpdateVizDpFilesJob:
+Sends command to RenderController to update dp files.
+
+Arguments:
+                DpFilePath   String   Dp file path.
+
+Work Request(s):
+                updateVizDpFilesJob()  [HighPriority]
+
+
+Set ANF Display Mode:
+Set ANF Display Mode using a configuration file.
+
+Arguments:
+                File   String   Path of the file to process.
+                CommandId   String   IBOSS command ID.
+
+Work Request(s):
+                setANFDisplay()  [Command]
+
+
+Set ANF Configuration:
+Set ANF configuration settings using a file.
+
+Arguments:
+                File   String   Path of the file to process.
+                CommandId   String   IBOSS command ID.
+
+Work Request(s):
+                setANFConfig()  [Command]
+
+
+Set State:
+Sets the ANF state to on or off
+
+Arguments:
+                StateType   String   State Type.
+
+Work Request(s):
+                setState()  [HighPriority]
+
+
+Cancel Job:
+Cancels a job given either an id or a work request. QueueName is not required
+
+Arguments:
+                QueueName   String   Name of the Queue.
+                CancelWorkRequest   String   WorkRequest to cancel.
+                JobToCancelId   UInt64   JobID to cancel.
+
+Work Request(s):
+                cancelJob()  [Admin]
+
+
+Clear Queue:
+Clears a queue.
+
+Arguments:
+                QueueName   String   Name of the Queue.
+ 
+Work Request(s):
+                clearQueueJob()  [Admin]
+
+
+Queue Status:
+Report the status of the job queues in the Executioner process.
+Work Request(s):
+                getQueueStatus()  [Admin]
+
+
+Reboot:
+Shutdown the I2 Service and reboot the local machine.
+
+Arguments:
+                CommandId   String   IBOSS command ID.
+
+Work Request(s):
+                rebootStar()  [Command]
+
+
+Restart I2 Service:
+Restart the processes managed by the I2 Service.
+
+Arguments:
+                CommandId   String   IBOSS command ID.
+
+Work Request(s):
+                restartI2Service()  [Command]
+
+
+Restart Process:
+Restarts a process managed by the I2 Service.
+
+Arguments:
+                ProcessName   String   The name of the process to restart.
+
+Work Request(s):
+                restartProcess()  [Status]
+
+
+Get I2Process Status:
+Shows the status of processes managed by the I2 Service. Leave File parameter empty.
+
+Arguments:
+                CommandId   String   IBOSS command ID.
+
+Work Request(s):
+                getI2ProcessStatus()  [Command]
+
+
+Set Tsii Config:
+Set Tsii Config
+
+Arguments:
+                DeviceType   String   Device Type.
+                File   String   Path of the file to process.
+                CommandId   String   IBOSS command ID.
+
+Work Request(s):
+                setTsiiConfig()  [Command]
+
+
+Set Tsii Encoder Config:
+Sends config values to configure Encoder Board
+
+Arguments:
+                TStormEncoderDpiPid   String   TSTORM_ENC_DPI_PID (dflt 220)
+                TStormEncoderPmtPid   String   TSTORM_ENC_PMT_PID (dflt 31)
+                TStormEncoderVidPid   String   TSTORM_ENC_VID_PID (dflt 32)
+                TStormEncoderAudPid   String   TSTORM_ENC_AUD_PID (dflt 33)
+                TStormEncoderTSRate   String   TSTORM_ENC_TSRATE (dflt 15000000)
+                TStormEncoderAudDelay   String   TSTORM_ENC_AUD_DELAY (dflt -3920)
+                TStormEncoderTTL   String   TSTORM_ENC_TTL (dflt 10)
+                UdpOut   String   UDP_OUT, in the form 'udp:[ip address]:port'
+                BoardIpType   String   BRD_IP_TYPE, either 'static' or 'dynamic'
+                BoardIpAddress   String   BRD_IP_ADDR, in the form of ip
+                BoardIpMask   String   BRD_IP_MASK, ex.(255.255.252.0)
+                BoardIpBroadcast   String   BRD_IP_BROADCAST, in the form of ip
+                BoardIpGateway   String   BRD_IP_GATEWAY, in the form of ip
+                BoardType   String   BOARD_TYPE
+
+Work Request(s):
+                setTsiiEncoderConfig()  [Command]
+
+
+Set Tsii Decoder Config:
+Sends config values to configure Decoder Board
+
+Arguments:
+                TStormOnlineDecoderDPIPid   String   TSTORM_ONL_DEC_DPI_PID (dflt 220)
+                TStormOnlineDecoderAudioPid   String   TSTORM_ONL_DEC_AUD_PID (dflt 210)
+                TStormOnlineDecoderVideoPid   String   TSTORM_ONL_DEC_VID_PID (dflt 208)
+                TStormOnlineDecoderPCRPid   String   TSTORM_ONL_DEC_PCR_PID (dflt 208)
+                TStormOnlineDecoderDATPid   String   TSTORM_ONL_DEC_DAT_PID (dflt 1561)
+                TStormDfltBKGVideoSrc   String   TSTORM_DFLT_BKG_VID_SRC (dflt 2)
+                UdpIn   String   UDP_IN, in the form 'udp:[ip address]:port'
+                BoardIpType   String   BRD_IP_TYPE, either 'static' or 'dynamic'
+                BoardIpAddress   String   BRD_IP_ADDR, in the form of ip
+                BoardIpMask   String   BRD_IP_MASK, in the form of ip
+                BoardIpBroadcast   String   BRD_IP_BROADCAST, in the form of ip
+                BoardIpGateway   String   BRD_IP_GATEWAY, in the form of ip
+                UdpSrcAddress   String   UDP_SRC_ADDR, in the form of ip
+                BoardType   String   BOARD_TYPE
+
+Work Request(s):
+                setTsiiDecoderConfig()  [Command]
+
+
+Set Pipeline Encoder Config:
+Sends config values from a file to configure Encoder
+
+Arguments:
+                File   String   Path of the file to process.
+                CommandId   String   IBOSS command ID.
+
+Work Request(s):
+                setPipelineEncoderConfig()  [Command]
+
+
+Set Pipeline Decoder Config:
+Sends config values from a file to configure Decoder
+
+Arguments:
+                File   String   Path of the file to process.
+                CommandId   String   IBOSS command ID.
+
+Work Request(s):
+                setPipelineDecoderConfig()  [Command]
+
+
+Set Pipeline Encoder Parameters:
+Sends config values to configure Encoder
+
+Arguments:
+                DolbyCert   String   Certified Dolby
+                EncOutPgmHd   String   HD Program number 
+                EncOutPgm   String   SD Program number
+                EncOutAudPidHd   String   HD Audio PID
+                EncOutVidPidHd   String   HD Video PID
+                EncOutVidBpsHd   String   HD Encoder ES bps
+                EncOutVidBps   String   SD Encoder ES bps
+                VideoFmt   String   Video Format Option
+                UdpOut   String   Encoder output, in the form of 'udp:[ip address]:port'
+                PipelineEncoderTTL   String   Encoder multicast output mc-ttl (dflt 16)
+                PipelineEncoderTSRate   String   Encoder output total bits/sec, valid range: 3.0 to 9.0 MBps (dflt 4500000)
+                PipelineEncoderAudPid   String   Encoder output audio PID (dflt 33)
+                PipelineEncoderVidPid   String   Encoder output video PID (dflt 32)
+                PipelineEncoderPmtPid   String   Encoder output PMT PID (dflt 31)
+                CommandId   String   IBOSS command ID.
+
+Work Request(s):
+                setPipelineEncoderParameters()  [Command]
+
+
+Set Pipeline Decoder Parameters:
+Sends config values to configure Decoder
+
+Arguments:
+                AnfNielsenSid   String   Nielsen SID for ANF (SD/PC,&lt;sid&gt;,&lt;check&gt;)
+                NielsenSidHd   String   HD Nielsen SID (SD/PC,&lt;sid&gt;,&lt;check&gt;)
+                DpiDur   String   DPI default duration (secs)
+                DpiOpts   String   DPI options
+                H264   String   Input is h.264 (1 for h.264, 0 for MPEG)
+                UdpSrcAddress   String   Broadcast input source IP, in the form of IP address
+                UdpIn   String   Broadcast input, in the form of 'udp:[ip address]:port'
+                GpiPid   String   DPI PID for GPI, this PID is selected from the DPI PID list 
+                EnableCompositeOut   String   Enable output to Cirrus, 1=Enable (dflt 1)
+                DpiPidList   String   DPI PID list, contains 0 to 8 PIDs, separated by colons, e.g. '50:51:52:220:221:260:261:262'
+                DefaultNielsenSid   String   Default Nielsen SID
+                DefaultNielsenMode   String   Default Nielsen Mode (dflt 3)
+                EnableNielsenSupport   String   Enable Nielsen Support (dflt 0)
+                PipelineDecoderDATPid   String   TWC UDP data PID, -1 to disable (dflt 1561)
+                PipelineDecoderAudioPid   String   Decoder input audio PID (dflt 0)
+                PipelineDecoderVideoPid   String   Decoder input video PID (dflt 0)
+                PipelineDecoderProgramNumber   String   MPEG program number, valid range: 1 to 255
+                CommandId   String   IBOSS command ID.
+
+Work Request(s):
+                setPipelineDecoderParameters()  [Command]
+
+
+Set Ad Decision Data:
+Stores Ad Decision Data.
+
+Arguments:
+                File   String   Path of the file to process.
+                CommandId   String   IBOSS command ID.
+
+Work Request(s):
+                setAdDecisionData()  [Command]
+
+
+Set Software Decoder Configuration:
+Set software decoder configuration settings using a file.
+
+Arguments:
+                File   String   Path of the file to process.
+                CommandId   String   IBOSS command ID.
+
+Work Request(s):
+                setSWDecoderConfig()  [Command]
+
+
+Configure IRD:
+Configure the IRD
+
+Arguments:
+                File   String   File to use
+
+Work Request(s):
+                configureIRD()  [Command]
+
+
+Clean Alternative Volatile Directory:
+Removes old files from the alternative volatile directory.(D-Drive)
+Work Request(s):
+                cleanUpAltVolatileJob()  [Background]
+
+
+Clean Events:
+Removes old files from the Events directory.
+Work Request(s):
+                cleanUpEventsJob()  [Background]
+
+
+Clean Derived Image Cuts:
+Removes old image cuts from the Data/ImageCuts directory.
+Work Request(s):
+                cleanUpImageCutsJob()  [Background]
+
+
+Clean Logs:
+Removes old files from the logs directory.
+Work Request(s):
+                cleanUpLogsJob()  [Background]
+
+
+Clean Movie Directory:
+Removes old files from the movies directory.(D:/TWC/I2/Movies)
+Work Request(s):
+                cleanUpMoviesFolderJob()  [Background]
+
+
+Clean viz NoConsole Logs:
+Removes old files from the viz logs directory.
+Work Request(s):
+                cleanUpNoConsoleLogsJob()  [Background]
+
+
+Clean Viz runtime scenes:
+Removes all of the temporary .peak files in the _rumtime directories.
+Work Request(s):
+                cleanUpVizRuntimeScenesJob()  [Background]
+
+
+Clean Vocal Clips:
+Removes old files from the Volatile/VocalClips directory.
+Work Request(s):
+                cleanUpVocalClipsJob()  [Background]
+
+
+Clean Volatile:
+Removes old files from the volatile directory.
+Work Request(s):
+                cleanUpVolatileJob()  [Background]
+
+
+Clean InvalidStarBundles:
+Removes old files from the InvalidStarBundles directory.
+Work Request(s):
+                cleanUpInvalidStarBundlesJob()  [Background]
+
+
+Clear Data:
+Deletes all files in the Data directory tree.
+Work Request(s):
+                clearData()  [Background]
+
+
+Clear Images:
+Deletes all files in the Data/Image folder that are older than 1 day.
+Work Request(s):
+                clearOrigImages()  [Background]
+
+
+Clean DAL:
+Removes expired entries from the Data Access Layer.
+
+Arguments:
+                RecordType   String   Allows to specify that only specific record type will be deleted. Omitted or empty string mean all records
+
+Work Request(s):
+                cleanDALJob()  [Background] 
+
+
+Clear Catalog:
+Deletes all files in a catalog directory tree.
+
+Arguments:
+                Catalog   String   The Catalog name
+
+Work Request(s):
+                clearCatalog()  [Background]
+
+
+Get Installed Products:
+Gets products from the System\Upgrades\Catalogs.
+
+Arguments:
+                CommandId   String   IBOSS command ID.
+
+Work Request(s):
+                getInstalledProducts()  [Command]
+
+
+Cancel Upgrade:
+Removes a stored or staged new release.
+
+Arguments:
+                ReleaseName   String   Release to cancel.
+
+Work Request(s):
+                cancelUpgrade()  [Admin]
+
+
+Display Upgrades:
+Displays a list of pending upgrades.
+Work Request(s):
+                displayUpgrades()  [Status]
+
+
+Store Upgrade:
+Puts the upgrade file to Managed\System\Upgrades\Pending directory
+
+Arguments:
+                ReleaseName   String   New filename to store as.
+                File   String   Path to filename to store.
+
+Work Request(s):
+                storeUpgrade()  [Admin]
+
+
+Stage Upgrade:
+Stages new release.
+
+Arguments:
+                InstallImmediately   Boolean   Install Immediately?
+                ReleaseName   String   Release to stage.
+
+Work Request(s):
+                stageUpgrade()  [Admin]
+
+
+Install Upgrades:
+Installs new releases.
+Work Request(s):
+                installUpgrades()  [Admin]
+
+
+Provision headend:
+Retreives files from iBoss that are specific to this headend
+
+Arguments:
+                File   String   Path to output file name.
+                HeadendId   String   HeadendId
+
+Work Request(s):
+                provisionHeadend()  [Background]
+
+
+Send reply to IBoss:
+Sends a command reply back to IBoss.
+
+Arguments:
+                Response   String   Response Document.
+                Success   Boolean   Success or failure of the action.
+                CommandId   String   IBOSS command ID.
+
+Work Request(s):
+                replyToIBoss()  [Background]
+
+
+Change Headend:
+Changes headend to new value, validating that the current headend is equal to OldHeadendId
+
+Arguments:
+                File   String   Path to filename containing old and new headend id's.
+
+Work Request(s):
+                changeHeadendId()  [Background]
+
+
+Store OCM movie:
+Stores OCM movie file to specified location and updates datastore
+
+Arguments:
+                File   String   File to process. This is the pathname to the volatile file.
+                FileName   String   File Name. Target filename after processing and renaming.
+                Location   String   Location. Absolute path where the file is to be stored.
+
+Work Request(s):
+                storeOCMMovieFile()  [RoutineImage] 
+
+
+Store Image:
+Cuts and stores an image.
+
+Arguments:
+                FileExtension   String   File Extension, .tiff, .tif, .bfg
+                File   String   Path to the filename.
+                IssueTime   String   Issue time in format: MM/dd/yyyy HH:mm:ss
+                Location   String   Location.[US, PR, HI, AK]
+                ImageType   String   Image Type.[Radar, Map, etc.]
+
+Work Request(s):
+                storePriorityImage()  [HighPriorityImage]
+                storeImage()  [RoutineImage]
+
+
+Get Data Record:
+Retrieve a record from the Data Access Layer.
+
+Arguments:
+                Key   String   The record's key.
+                RecordType   String   The record type to retrieve.
+
+Work Request(s):
+                getData()  [Status]
+
+
+Get Data Keys:
+Retrieve an Xml document listing all the keys for a particular DataRecord type.
+
+Arguments:
+                RecordType   String   The record type to retrieve.
+
+Work Request(s):
+                getDataKeys()  [Status]
+
+
+Get Data Types:
+Retrieve an Xml document listing all the DataRecord and DataView types in DAL.
+Work Request(s):
+                getDataTypes()  [Status]
+
+
+Change User Password:
+Changes user's password to a new value
+
+Arguments:
+                File   String   Path to filename containing passwords.
+                CommandId   String   IBOSS command ID.
+
+Work Request(s):
+                changePassword()  [Command]
+
+
+Initiate backchannel information FTP:
+Tries to send accumulated backchannel files using ftp, retries until configurable max is reached.
+Work Request(s):
+                ftpBackChannelFile()  [BackChannel]
+
+
+Zip BackChannelInfo:
+Zips the back channel information into 1 zip file.
+Work Request(s):
+                zipBackChannelInfo()  [BackChannel]
+
+
+Get System Event Log:
+Gets entries from system's EventLog.
+
+Arguments:
+                EventLogDate   DateTime   EventLog date as (MM/dd/yyyy).
+                EventLogType   String   EventLog type.
+
+Work Request(s):
+                getSystemEventLog()  [Status]
+
+
+Get System Status:
+Gets Various system hardware and software information through a series of python scripts.
+Work Request(s):
+                getSystemStatus()  [Status]
+
+
+Get Encoder and Decoder Health:
+Gets health of the encoder and decoder through a series of python scripts.
+Work Request(s):
+                getEncoderDecoderHealth()  [Status]
+
+
+Get BIOS Info:
+Returns information about BIOS installed on the Star. Leave File parameter empty.
+
+Arguments:
+                CommandId   String   IBOSS command ID.
+
+Work Request(s):
+                getBiosInfo()  [Command]
+
+
+Sync StarBundle Versions Job:
+Sync StarBundleVersion(s) with whats on disk
+Work Request(s):
+                syncStarBundleVersions()  [StarBundle]
+
+
+Retrieve BackChannel NIC Properties:
+Get BackChannel NIC TCP/IP Properties
+
+Arguments:
+                CommandId   String   IBOSS command ID.
+
+Work Request(s):
+                getBackChannelNicProperties()  [Command]
+
+
+Retrieve TS_In NIC Properties:
+Get TS_In NIC TCP/IP Properties
+
+Arguments:
+                CommandId   String   IBOSS command ID.
+
+Work Request(s):
+                getTsInNicProperties()  [Command]
+
+
+Retrieve TS_Out NIC Properties:
+Get TS_Out NIC TCP/IP Properties
+
+Arguments:
+                CommandId   String   IBOSS command ID.
+
+Work Request(s):
+                getTsOutNicProperties()  [Command]
+
+
+Retrieve Alternate_TS_Out NIC Properties:
+Get Alternate_TS_Out NIC TCP/IP Properties
+
+Arguments:
+                CommandId   String   IBOSS command ID.
+
+Work Request(s):
+                getAlternateTsOutNicProperties()  [Command]
+
+
+Retrieve All NICs Properties:
+Get All NICs TCP/IP Properties
+Work Request(s):
+                getAllNicsPropertiesJob()  [Background]
+
+
+Set BackChannel NIC Properties:
+Set BackChannel NIC TCP/IP Properties. If you leave IP address empty, it will be set to DHCP.
+
+Arguments:
+                Dns2   String   Backchannel DNS 2 (Alternate Dns).
+                Dns1   String   Backchannel DNS 1 (Preferred Dns).
+                Gateway   String   Backchannel Gateway.
+                Netmask   String   Backchannel Netmask.
+                IpAddress   String   Backchannel IP Address.
+                CommandId   String   IBOSS command ID.
+
+Work Request(s):
+                setBackChannelNicProperties()  [Command] 
+
+
+Set TS_In NIC Properties:
+Set TS_In NIC TCP/IP Properties. If you leave IP address empty, it will be set to DHCP.
+
+Arguments:
+                Dns2   String   TS_In DNS 2 (Alternate Dns).
+                Dns1   String   TS_In DNS 1 (Preferred Dns).
+                Gateway   String   TS_In Gateway.
+                Netmask   String   TS_In Netmask.
+                IpAddress   String   TS_In IP Address.
+                CommandId   String   IBOSS command ID.
+
+Work Request(s):
+                setTsInNicProperties()  [Command]
+
+
+Set TS_Out NIC Properties:
+Set TS_Out NIC TCP/IP Properties. If you leave IP address empty, it will be set to DHCP.
+
+Arguments:
+                Dns2   String   TS_Out DNS 2 (Alternate Dns).
+                Dns1   String   TS_Out DNS 1 (Preferred Dns).
+                Gateway   String   TS_Out Gateway.
+                Netmask   String   TS_Out Netmask.
+                IpAddress   String   TS_Out IP Address.
+                CommandId   String   IBOSS command ID.
+
+Work Request(s):
+                setTsOutNicProperties()  [Command]
+
+
+Set Alternate_TS_Out NIC Properties:
+Set Alternate_TS_Out NIC TCP/IP Properties. If you leave IP address empty, it will be set to DHCP.
+
+Arguments:
+                RunSSHServer   String   Run SSH server, 0=Disable, 1=Enable (dflt 0).
+                Dns2   String   Alternate_TS_Out DNS 2 (Alternate Dns).
+                Dns1   String   Alternate_TS_Out DNS 1 (Preferred Dns).
+                Gateway   String   Alternate_TS_Out Gateway.
+                Netmask   String   Alternate_TS_Out Netmask.
+                IpAddress   String   Alternate_TS_Out IP Address.
+                CommandId   String   IBOSS command ID.
+
+Work Request(s):
+                setAlternateTsOutNicProperties()  [Command]
+
+
+Set BackChannel NIC:
+Set BackChannel NIC TCP/IP Properties using a configuration file. If you leave IP address empty, it will be set to DHCP.
+
+Arguments:
+                File   String   Path of the file to process.
+                CommandId   String   IBOSS command ID.
+
+Work Request(s):
+                setBackChannelNic()  [Command]
+
+
+Set TS_In NIC:
+Set TS_In NIC TCP/IP Properties using a configuration file. If you leave IP address empty, it will be set to DHCP.
+
+Arguments:
+                File   String   Path of the file to process.
+                CommandId   String   IBOSS command ID.
+
+Work Request(s):
+                setTsInNic()  [Command]
+
+
+Set TS_Out NIC:
+Set TS_Out NIC TCP/IP Properties using a configuration file. If you leave IP address empty, it will be set to DHCP.
+
+Arguments:
+                File   String   Path of the file to process. 
+                CommandId   String   IBOSS command ID.
+
+Work Request(s):
+                setTsOutNic()  [Command]
+
+
+Set Alternate_TS_Out NIC:
+Set Alternate_TS_Out NIC TCP/IP Properties using a configuration file. If you leave IP address empty, it will be set to DHCP.
+
+Arguments:
+                File   String   Path of the file to process.
+                CommandId   String   IBOSS command ID.
+
+Work Request(s):
+                setAlternateTsOutNic()  [Command]
+
+
+Set Utility NIC:
+Set Utility NIC TCP/IP Properties using a configuration file. If you leave IP address empty, it will be set to DHCP.
+
+Arguments:
+                File   String   Path of the file to process.
+                CommandId   String   IBOSS command ID.
+
+Work Request(s):
+                setUtilityNic()  [Command]
+
+
+Headline Job:
+Get, sort and store bulletin headlines.
+Work Request(s):
+                headlineJob()  [HighPriorityData]
+
+
+Heartbeat:
+Will run Heartbeat command based on params supplied.
+
+Arguments:
+                Time   String   Host Time.
+
+Work Request(s):
+                heartbeat()  [Heartbeat]
+
+
+Store Data:
+Stores Xml data into the DataAccess layer.
+
+Arguments:
+                File   String   Path of the file to process.
+
+Work Request(s):
+                storeData()  [RoutineData]
+                storePriorityData()  [HighPriorityData]
+
+
+Apply StarBundle:
+Apply pending StarBundles if the time has come
+Work Request(s):
+                applyStarBundle()  [StarBundle]
+
+
+Stage StarBundle:
+Stage a StarBundle to be applied.
+
+Arguments:
+                File   String   Path to filename to store.
+
+Work Request(s):
+                stageStarBundle()  [StarBundle]
+
+
+Clear StarBundle:
+Removes all entries from [Type]Version.xml file and sets it back to empty Versions
+
+Arguments:
+                BundleType   String   Type of the bundle (Changeset or Managed).
+
+Work Request(s):
+                clearStarBundle()  [StarBundle]
+
+
+Bootstrap StarBundle:
+Overrides the managed StarBundleDescriptor with an empty one that only has the baseDir property set
+
+Arguments:
+                HeadendId   String   Id of this headend.
+
+Work Request(s):
+                bootstrapStarBundle()  [StarBundle] 
+
+
+Bootstrap StarFlags:
+Overrides the managed StarFlags file with one that has only the passed in flags
+
+Arguments:
+                Flag   String   Flag to put on this box.
+
+Work Request(s):
+                bootstrapStarFlags()  [StarBundle]
+
+
+Reset All StarBundle Versions:
+Reset the StarBundle Versions for all files in the specified catalog type.
+
+Arguments:
+                BType   String   StarBundle Type.
+
+Work Request(s):
+                resetAllStarBundleVersions()  [StarBundle]
+
+
+Reset StarBundle Versions:
+Resets specific entries from [Type]Version.xml as specified in the reset XML file
+
+Arguments:
+                File   String   Reset file.
+
+Work Request(s):
+                resetStarBundleVersions()  [StarBundle]
+
+
+Get Bundle Versions:
+Returns info about Managed and ChangeSet StarBundle versions. Leave File parameter empty.
+
+Arguments:
+                CommandId   String   IBOSS command ID.
+
+Work Request(s):
+                getBundleVersions()  [Command]
+
+
+Fix Version Files:
+Removes corrupted version files so that this client can continue receiving starbundles.
+Work Request(s):
+                fixVersionFileJob()  [StarBundle]
+
+
+Change TimeZone and send notification:
+Changes TimeZone and sends notification of TimeZone change. Restart the processes managed by the I2 Service.
+
+Arguments:
+                TimeZoneString   String   New TimeZone value
+
+Work Request(s):
+                changeTimeZone()  [StarBundle]
+
+
+Update Image Sequences:
+Remakes any image sequences needed.
+
+Arguments:
+                ImageType   String   Type of image sequence. For example: Radar.US, or Radar.PR (Optional)
+
+Work Request(s):
+                makeImageSequence()  [RoutineImage]
+

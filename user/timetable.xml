@@ -1,0 +1,504 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<timetable>
+    <event>
+        <DisplayName>LDL</DisplayName>
+        <Category>Cue Presentation</Category>
+        <TargetID />
+        <CustomCommand />
+        <MinuteInterval>9</MinuteInterval>
+        <TenMinuteInterval>
+            <TenMinute>00</TenMinute>
+            <TenMinute>10</TenMinute>
+            <TenMinute>20</TenMinute>
+            <TenMinute>30</TenMinute>
+            <TenMinute>40</TenMinute>
+            <TenMinute>50</TenMinute>
+        </TenMinuteInterval>
+        <Hours />
+        <Days>
+            <Day>Monday</Day>
+            <Day>Tuesday</Day>
+            <Day>Wednesday</Day>
+            <Day>Thursday</Day>
+            <Day>Friday</Day>
+            <Day>Saturday</Day>
+            <Day>Sunday</Day>
+        </Days>
+        <Weeks>
+            <Week>1</Week>
+            <Week>2</Week>
+            <Week>3</Week>
+            <Week>4</Week>
+            <Week>5</Week>
+        </Weeks>
+        <Months>
+            <Month>1</Month>
+            <Month>2</Month>
+            <Month>3</Month>
+            <Month>4</Month>
+            <Month>5</Month>
+            <Month>6</Month>
+            <Month>7</Month>
+            <Month>8</Month>
+            <Month>9</Month>
+            <Month>10</Month>
+            <Month>11</Month>
+            <Month>12</Month>
+        </Months>
+        <RunAtStartup>True</RunAtStartup>
+        <Enabled>True</Enabled>
+        <ClientConfigs>
+            <ClientConfig id="i2xd_172_16_1_31">
+                <Action>LoadRun</Action>
+                <Flavor>domestic/ldlssp</Flavor>
+                <PresentationID>ldl1</PresentationID>
+                <Duration>75</Duration>
+                <Logo />
+                <Command />
+                <SU />
+                <LDLState />
+            </ClientConfig>
+            <ClientConfig id="i2jr_172_16_1_32">
+                <Action>LoadRun</Action>
+                <Flavor>domesticsd/LDLI</Flavor>
+                <PresentationID>ldl1</PresentationID>
+                <Duration>65</Duration>
+                <Logo />
+                <Command />
+                <SU />
+                <LDLState />
+            </ClientConfig>
+            <ClientConfig id="i1_172_16_1_39">
+                <Action>LDL (On/Off)</Action>
+                <Flavor />
+                <PresentationID />
+                <Duration />
+                <Logo />
+                <Command />
+                <SU />
+                <LDLState>1</LDLState>
+            </ClientConfig>
+        </ClientConfigs>
+        <clients>
+            <client>i2xd_172_16_1_31</client>
+            <client>i2jr_172_16_1_32</client>
+            <client>i1_172_16_1_39</client>
+        </clients>
+        <flavor>
+            <flavor client="i2xd_172_16_1_31">domestic/ldlssp</flavor>
+            <flavor client="i2jr_172_16_1_32">domesticsd/LDLI</flavor>
+        </flavor>
+    </event>
+    <event>
+        <DisplayName>enhanced</DisplayName>
+        <Category>Cue Presentation</Category>
+        <TargetID />
+        <CustomCommand />
+        <MinuteInterval>8</MinuteInterval>
+        <TenMinuteInterval>
+            <TenMinute>10</TenMinute>
+            <TenMinute>40</TenMinute>
+        </TenMinuteInterval>
+        <Hours />
+        <Days>
+            <Day>Monday</Day>
+            <Day>Tuesday</Day>
+            <Day>Wednesday</Day>
+            <Day>Thursday</Day>
+            <Day>Friday</Day>
+            <Day>Saturday</Day>
+            <Day>Sunday</Day>
+        </Days>
+        <Weeks>
+            <Week>1</Week>
+            <Week>2</Week>
+            <Week>3</Week>
+            <Week>4</Week>
+            <Week>5</Week>
+        </Weeks>
+        <Months>
+            <Month>1</Month>
+            <Month>2</Month>
+            <Month>3</Month>
+            <Month>4</Month>
+            <Month>5</Month>
+            <Month>6</Month>
+            <Month>7</Month>
+            <Month>8</Month>
+            <Month>9</Month>
+            <Month>10</Month>
+            <Month>11</Month>
+            <Month>12</Month>
+        </Months>
+        <RunAtStartup>False</RunAtStartup>
+        <Enabled>True</Enabled>
+        <ClientConfigs>
+            <ClientConfig id="i2xd_172_16_1_31">
+                <Flavor>domestic/V</Flavor>
+                <PresentationID>1</PresentationID>
+                <Duration>75</Duration>
+            </ClientConfig>
+            <ClientConfig id="i2jr_172_16_1_32">
+                <Flavor>domesticsd/V</Flavor>
+                <PresentationID>1</PresentationID>
+                <Duration>65</Duration>
+            </ClientConfig>
+        </ClientConfigs>
+        <clients>
+            <client>i2xd_172_16_1_31</client>
+            <client>i2jr_172_16_1_32</client>
+        </clients>
+        <flavor>
+            <flavor client="i2xd_172_16_1_31">domestic/V</flavor>
+            <flavor client="i2jr_172_16_1_32">domesticsd/V</flavor>
+        </flavor>
+    </event>
+    <event>
+        <DisplayName>nemo</DisplayName>
+        <Category>Cue Presentation</Category>
+        <TargetID />
+        <CustomCommand />
+        <MinuteInterval>8</MinuteInterval>
+        <TenMinuteInterval>
+            <TenMinute>00</TenMinute>
+            <TenMinute>30</TenMinute>
+        </TenMinuteInterval>
+        <Hours />
+        <Days>
+            <Day>Monday</Day>
+            <Day>Tuesday</Day>
+            <Day>Wednesday</Day>
+            <Day>Thursday</Day>
+            <Day>Friday</Day>
+        </Days>
+        <Weeks>
+            <Week>1</Week>
+            <Week>2</Week>
+            <Week>3</Week>
+            <Week>4</Week>
+            <Week>5</Week>
+        </Weeks>
+        <Months>
+            <Month>1</Month>
+            <Month>2</Month>
+            <Month>3</Month>
+            <Month>4</Month>
+            <Month>5</Month>
+            <Month>6</Month>
+            <Month>7</Month>
+            <Month>8</Month>
+            <Month>9</Month>
+            <Month>10</Month>
+            <Month>11</Month>
+            <Month>12</Month>
+        </Months>
+        <RunAtStartup>False</RunAtStartup>
+        <Enabled>True</Enabled>
+        <ClientConfigs>
+            <ClientConfig id="i2xd_172_16_1_31">
+                <Flavor>domestic/N</Flavor>
+                <PresentationID>1</PresentationID>
+                <Duration>75</Duration>
+            </ClientConfig>
+            <ClientConfig id="i2jr_172_16_1_32">
+                <Flavor>domesticsd/N</Flavor>
+                <PresentationID>1</PresentationID>
+                <Duration>65</Duration>
+            </ClientConfig>
+        </ClientConfigs>
+        <clients>
+            <client>i2xd_172_16_1_31</client>
+            <client>i2jr_172_16_1_32</client>
+        </clients>
+        <flavor>
+            <flavor client="i2xd_172_16_1_31">domestic/N</flavor>
+            <flavor client="i2jr_172_16_1_32">domesticsd/N</flavor>
+        </flavor>
+    </event>
+    <event>
+        <DisplayName>i1 lf</DisplayName>
+        <Category>Cue Presentation</Category>
+        <TargetID />
+        <CustomCommand />
+        <MinuteInterval>8</MinuteInterval>
+        <TenMinuteInterval>
+            <TenMinute>00</TenMinute>
+            <TenMinute>10</TenMinute>
+            <TenMinute>20</TenMinute>
+            <TenMinute>30</TenMinute>
+            <TenMinute>40</TenMinute>
+            <TenMinute>50</TenMinute>
+        </TenMinuteInterval>
+        <Hours />
+        <Days>
+            <Day>Monday</Day>
+            <Day>Tuesday</Day>
+            <Day>Wednesday</Day>
+            <Day>Thursday</Day>
+            <Day>Friday</Day>
+            <Day>Saturday</Day>
+            <Day>Sunday</Day>
+        </Days>
+        <Weeks>
+            <Week>1</Week>
+            <Week>2</Week>
+            <Week>3</Week>
+            <Week>4</Week>
+            <Week>5</Week>
+        </Weeks>
+        <Months>
+            <Month>1</Month>
+            <Month>2</Month>
+            <Month>3</Month>
+            <Month>4</Month>
+            <Month>5</Month>
+            <Month>6</Month>
+            <Month>7</Month>
+            <Month>8</Month>
+            <Month>9</Month>
+            <Month>10</Month>
+            <Month>11</Month>
+            <Month>12</Month>
+        </Months>
+        <Enabled>True</Enabled>
+        <clients>
+            <client>i1</client>
+        </clients>
+        <flavor>
+            <flavor client="i1">M</flavor>
+        </flavor>
+    </event>
+    <event>
+        <DisplayName>cancel ldl</DisplayName>
+        <Category>Cancel Presentation</Category>
+        <TargetID>ldl1</TargetID>
+        <CustomCommand />
+        <MinuteInterval>8</MinuteInterval>
+        <TenMinuteInterval>
+            <TenMinute>00</TenMinute>
+            <TenMinute>10</TenMinute>
+            <TenMinute>20</TenMinute>
+            <TenMinute>30</TenMinute>
+            <TenMinute>40</TenMinute>
+            <TenMinute>50</TenMinute>
+        </TenMinuteInterval>
+        <Hours />
+        <Days>
+            <Day>Monday</Day>
+            <Day>Tuesday</Day>
+            <Day>Wednesday</Day>
+            <Day>Thursday</Day>
+            <Day>Friday</Day>
+            <Day>Saturday</Day>
+            <Day>Sunday</Day>
+        </Days>
+        <Weeks>
+            <Week>1</Week>
+            <Week>2</Week>
+            <Week>3</Week>
+            <Week>4</Week>
+            <Week>5</Week>
+        </Weeks>
+        <Months>
+            <Month>1</Month>
+            <Month>2</Month>
+            <Month>3</Month>
+            <Month>4</Month>
+            <Month>5</Month>
+            <Month>6</Month>
+            <Month>7</Month>
+            <Month>8</Month>
+            <Month>9</Month>
+            <Month>10</Month>
+            <Month>11</Month>
+            <Month>12</Month>
+        </Months>
+        <RunAtStartup>False</RunAtStartup>
+        <Enabled>True</Enabled>
+        <ClientConfigs />
+        <clients>
+            <client>i2xd_172_16_1_31</client>
+            <client>i2jr_172_16_1_32</client>
+            <client>i1_172_16_1_39</client>
+        </clients>
+        <flavor />
+    </event>
+    <event>
+        <DisplayName>azul</DisplayName>
+        <Category>Cue Presentation</Category>
+        <TargetID />
+        <CustomCommand />
+        <MinuteInterval>8</MinuteInterval>
+        <TenMinuteInterval>
+            <TenMinute>20</TenMinute>
+            <TenMinute>50</TenMinute>
+        </TenMinuteInterval>
+        <Hours />
+        <Days>
+            <Day>Monday</Day>
+            <Day>Tuesday</Day>
+            <Day>Wednesday</Day>
+            <Day>Thursday</Day>
+            <Day>Friday</Day>
+            <Day>Saturday</Day>
+            <Day>Sunday</Day>
+        </Days>
+        <Weeks>
+            <Week>1</Week>
+            <Week>2</Week>
+            <Week>3</Week>
+            <Week>4</Week>
+            <Week>5</Week>
+        </Weeks>
+        <Months>
+            <Month>1</Month>
+            <Month>2</Month>
+            <Month>3</Month>
+            <Month>4</Month>
+            <Month>5</Month>
+            <Month>6</Month>
+            <Month>7</Month>
+            <Month>8</Month>
+            <Month>9</Month>
+            <Month>10</Month>
+            <Month>11</Month>
+            <Month>12</Month>
+        </Months>
+        <RunAtStartup>False</RunAtStartup>
+        <Enabled>True</Enabled>
+        <ClientConfigs>
+            <ClientConfig id="i2xd_172_16_1_31">
+                <Flavor>domestic/azul</Flavor>
+                <PresentationID>1</PresentationID>
+                <Duration>120</Duration>
+            </ClientConfig>
+            <ClientConfig id="i2jr_172_16_1_32">
+                <Flavor>domesticsd/azul i2 jr</Flavor>
+                <PresentationID>1</PresentationID>
+                <Duration>90</Duration>
+            </ClientConfig>
+        </ClientConfigs>
+        <clients>
+            <client>i2xd_172_16_1_31</client>
+            <client>i2jr_172_16_1_32</client>
+        </clients>
+        <flavor>
+            <flavor client="i2xd_172_16_1_31">domestic/azul</flavor>
+            <flavor client="i2jr_172_16_1_32">domesticsd/azul i2 jr</flavor>
+        </flavor>
+    </event>
+    <event>
+        <DisplayName>XDSidebar</DisplayName>
+        <Category>Cue Presentation</Category>
+        <TargetID />
+        <CustomCommand />
+        <MinuteInterval>9</MinuteInterval>
+        <TenMinuteInterval>
+            <TenMinute>00</TenMinute>
+            <TenMinute>10</TenMinute>
+            <TenMinute>20</TenMinute>
+            <TenMinute>30</TenMinute>
+            <TenMinute>40</TenMinute>
+            <TenMinute>50</TenMinute>
+        </TenMinuteInterval>
+        <Hours />
+        <Days>
+            <Day>Monday</Day>
+            <Day>Tuesday</Day>
+            <Day>Wednesday</Day>
+            <Day>Thursday</Day>
+            <Day>Friday</Day>
+            <Day>Saturday</Day>
+            <Day>Sunday</Day>
+        </Days>
+        <Weeks>
+            <Week>1</Week>
+            <Week>2</Week>
+            <Week>3</Week>
+            <Week>4</Week>
+            <Week>5</Week>
+        </Weeks>
+        <Months>
+            <Month>1</Month>
+            <Month>2</Month>
+            <Month>3</Month>
+            <Month>4</Month>
+            <Month>5</Month>
+            <Month>6</Month>
+            <Month>7</Month>
+            <Month>8</Month>
+            <Month>9</Month>
+            <Month>10</Month>
+            <Month>11</Month>
+            <Month>12</Month>
+        </Months>
+        <RunAtStartup>True</RunAtStartup>
+        <Enabled>True</Enabled>
+        <ClientConfigs>
+            <ClientConfig id="i2xd_172_16_1_31">
+                <Flavor>domestic/sidebarssp</Flavor>
+                <PresentationID>sidebar1</PresentationID>
+                <Duration>6767</Duration>
+            </ClientConfig>
+        </ClientConfigs>
+        <clients>
+            <client>i2xd_172_16_1_31</client>
+        </clients>
+        <flavor>
+            <flavor client="i2xd_172_16_1_31">domestic/sidebarssp</flavor>
+        </flavor>
+    </event>
+    <event>
+        <DisplayName>cancelXDSidebar</DisplayName>
+        <Category>Cancel Presentation</Category>
+        <TargetID>sidebar1</TargetID>
+        <CustomCommand />
+        <MinuteInterval>7</MinuteInterval>
+        <TenMinuteInterval>
+            <TenMinute>00</TenMinute>
+            <TenMinute>10</TenMinute>
+            <TenMinute>20</TenMinute>
+            <TenMinute>30</TenMinute>
+            <TenMinute>40</TenMinute>
+            <TenMinute>50</TenMinute>
+        </TenMinuteInterval>
+        <Hours />
+        <Days>
+            <Day>Monday</Day>
+            <Day>Tuesday</Day>
+            <Day>Wednesday</Day>
+            <Day>Thursday</Day>
+            <Day>Friday</Day>
+            <Day>Saturday</Day>
+            <Day>Sunday</Day>
+        </Days>
+        <Weeks>
+            <Week>1</Week>
+            <Week>2</Week>
+            <Week>3</Week>
+            <Week>4</Week>
+            <Week>5</Week>
+        </Weeks>
+        <Months>
+            <Month>1</Month>
+            <Month>2</Month>
+            <Month>3</Month>
+            <Month>4</Month>
+            <Month>5</Month>
+            <Month>6</Month>
+            <Month>7</Month>
+            <Month>8</Month>
+            <Month>9</Month>
+            <Month>10</Month>
+            <Month>11</Month>
+            <Month>12</Month>
+        </Months>
+        <RunAtStartup>False</RunAtStartup>
+        <Enabled>True</Enabled>
+        <ClientConfigs />
+        <clients>
+            <client>i2xd_172_16_1_31</client>
+        </clients>
+        <flavor />
+    </event>
+</timetable>
