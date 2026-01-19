@@ -15,7 +15,8 @@
                 "su": null,
                 "password": "sspwxr",
                 "port": 22
-            }
+            },
+            "id": "i2xd_172_16_1_31"
         },
         {
             "star": "i2jr",
@@ -27,7 +28,8 @@
                 "su": null,
                 "password": "sspwxr",
                 "port": 22
-            }
+            },
+            "id": "i2jr_172_16_1_32"
         },
         {
             "star": "i1",
@@ -39,7 +41,8 @@
                 "su": "dgadmin",
                 "password": "i1root",
                 "port": 22
-            }
+            },
+            "id": "i1_172_16_1_39"
         }
     ]
 }

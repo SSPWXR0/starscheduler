@@ -1,5 +1,6 @@
 
 import asyncio
+import os
 import re
 import sys
 import paramiko
@@ -21,15 +22,44 @@ dangerous_commands = re.compile(
     re.IGNORECASE
 )
 
-async def execute_local_command(command: str) -> tuple[str, str]:
-    """Execute a local shell command asynchronously."""
-    process = await asyncio.create_subprocess_shell(
-        command,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
-    )
-    stdout, stderr = await process.communicate()
-    return stdout.decode(), stderr.decode()
+async def execute_local_command(command: str, timeout: float = 10.0) -> tuple[str, str]:
+    """Execute a local shell command asynchronously with Windows compatibility."""
+    try:
+        if sys.platform == 'win32':
+            proc = await asyncio.create_subprocess_shell(
+                command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                shell=True,
+                creationflags=0x08000000
+            )
+        else:
+            proc = await asyncio.create_subprocess_shell(
+                command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+        try:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+            logger.error(f"Local subprocess command timed out after {timeout}s: {command}")
+            return "", f"Command timed out after {timeout} seconds"
+        
+        stdout_str = stdout.decode('utf-8', errors='replace')
+        stderr_str = stderr.decode('utf-8', errors='replace')
+        
+        if stdout_str:
+            logger.debug(f"Local Subprocess output: {stdout_str}")
+        if stderr_str:
+            logger.error(f"Error in local subprocess: {stderr_str}")
+        
+        return stdout_str, stderr_str
+    except Exception as e:
+        logger.error(f"Failed to execute local command: {e}")
+        return "", str(e)
+    
 
 
 async def execute_udp_message(hostname: str, port: int, message: str, timeout: float = 5.0) -> None:
@@ -180,13 +210,17 @@ async def execute_telnet_command(hostname: str, port: int, command: str, user: O
 
 async def subproc_load_i2_pres(flavor: str, PresentationId: str, duration: int, logo: str = "") -> None:
     command = f'{i2exec} loadPres(Flavor="{flavor}",Duration="{duration}",PresentationId="{PresentationId}")'
-    await execute_local_command(command)
+    stdout, stderr = await execute_local_command(command, timeout=15.0)
+    if stderr:
+        logger.warning(f"Subprocess load error: {stderr}")
     logger.info(f"Subprocess: Loaded presentation {PresentationId} with flavor {flavor} for {duration} minutes.")
 
 
 async def subproc_run_i2_pres(PresentationId: str) -> None:
     command = f'"{i2exec}" runPres(PresentationId="{PresentationId}")'
-    await execute_local_command(command)
+    stdout, stderr = await execute_local_command(command, timeout=15.0)
+    if stderr:
+        logger.warning(f"Subprocess run error: {stderr}")
     logger.info(f"Subprocess: Running presentation {PresentationId}.")
 
 async def subproc_loadrun_i2_pres(flavor: str, PresentationId: str, duration: int, logo: str = "") -> None:
@@ -199,8 +233,11 @@ async def subproc_loadrun_i2_pres(flavor: str, PresentationId: str, duration: in
 async def subproc_cancel_i2_pres(PresentationId: str) -> None:
     """Cancel an i2 presentation via local subprocess."""
     command = f'"{i2exec}" cancelPres(PresentationId="{PresentationId}")'
-    await execute_local_command(command)
+    stdout, stderr = await execute_local_command(command, timeout=15.0)
+    if stderr:
+        logger.warning(f"Subprocess cancel error: {stderr}")
     logger.info(f"Subprocess: Canceled presentation {PresentationId}.")
+    return stdout, stderr
 
 
 async def ssh_load_i2_pres(
