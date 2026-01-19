@@ -2856,7 +2856,11 @@ class user_interface:
         header_layout.addWidget(brand_widget)
         labels_layout = QtWidgets.QVBoxLayout()
         time_label = QtWidgets.QLabel()
-        hostname_label = QtWidgets.QLabel(f"Hostname: {os.uname().nodename}")
+        if os.name == 'nt':
+            hostname = os.environ.get('COMPUTERNAME', 'Unknown')
+        else:
+            hostname = os.environ.get('HOSTNAME', 'Unknown')
+        hostname_label = QtWidgets.QLabel(f"Hostname: {hostname}")
         outputs_label = QtWidgets.QLabel(f"Concurrent Outputs: {connected_outputs}")
         
         main_status_labels: list[QtWidgets.QLabel] = [
