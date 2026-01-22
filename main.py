@@ -4051,7 +4051,7 @@ class scheduler:
                 for trigger_sec in TRIGGER_SECONDS:
                     trigger_key = (minute_key, trigger_sec)
 
-                    if current_second >= trigger_sec and current_second < trigger_sec + 8:
+                    if current_second >= trigger_sec and current_second < trigger_sec + 5:
                         if trigger_key not in fired_triggers:
                             fired_triggers.add(trigger_key)
 
@@ -4267,6 +4267,24 @@ class scheduler:
         su = creds.get('su', 'dgadmin') if is_i1 else creds.get('su', None)
         registry = provision.get_connection_registry()
         use_persistent = registry.get_session(cid) is not None
+        
+        if triggers and not is_manual:
+            trigger_i2_loadrun = triggers.get('trigger_i2_loadrun', False)
+            trigger_load_i1 = triggers.get('trigger_load_i1', False)
+            trigger_run_i1 = triggers.get('trigger_run_i1', False)
+            
+            if is_i1:
+                if action == "Load" and not trigger_load_i1:
+                    return
+                elif action == "Run" and not trigger_run_i1:
+                    return
+                elif action == "LoadRun":
+                    if not trigger_load_i1:
+                        return
+            else:
+                if action in ("LoadRun", "Load", "Run") and not trigger_i2_loadrun:
+                    return
+        
         logger.info(f"Dispatching action '{action}' to client {cid}...")
         
         try:
