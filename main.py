@@ -4136,83 +4136,64 @@ class scheduler:
             logger.error(f"Prediction error: {e}")
 
     async def _execute_single_event(self, event, triggers=None):
+        """Execute an event using action cards (like QuickTimeEventTab)."""
         try:
-            category = event.get('Category', 'Cue Presentation')
-
             self.last_event_name = event.get('DisplayName', 'Unknown')
             now = datetime.now()
             self.last_event_time = now.strftime("%I:%M:%S %p")
             
-            logger.debug(f"Executing event: {self.last_event_name} (Category: {category})")
+            logger.debug(f"Executing event: {self.last_event_name}")
 
             if triggers and 'target_time' in triggers:
                 target = triggers['target_time']
                 diff = (now - target).total_seconds()
                 self.last_event_offset = diff
                 if abs(diff) > 6:
-                    import platform
                     logger.warning(f"Event '{self.last_event_name}' executed with offset of {diff} seconds from scheduled time.")
-                
+                    import random
+                    if random.randint(1,4) == 3:
+                        logger.warning("when im in a time drift competition and my opponent is renderd")
             else:
                 self.last_event_offset = 0.0
-
             client_configs = event.get('client_config', {})
-            legacy_clients = event.get('clients', [])
-            legacy_flavor = event.get('flavor', {})
-            
-            execution_map = {}
-            
-            if client_configs:
-                for cid, cfg in client_configs.items():
-                    execution_map[cid] = {
-                        'flavor': cfg.get('flavor', ''),
-                        'presentation_id': cfg.get('presentation_id', ''),
-                        'duration': cfg.get('duration', ''),
-                        'action': cfg.get('action', ''),
-                        'ldl_state': cfg.get('ldl_state', ''),
-                        'logo': cfg.get('logo', ''),
-                        'command': cfg.get('command', ''),
-                        'su': cfg.get('su', '')
-                    }
-            else:
-                target_ids = legacy_clients if legacy_clients else list(legacy_flavor.keys())
-                
+            if not client_configs:
+                legacy_clients = event.get('clients', [])
+                legacy_flavor = event.get('flavor', {})
                 global_pid = event.get('TargetID', '').strip()
-                global_dur = '60'
                 
-                for cid in target_ids:
-                    execution_map[cid] = {
+                for cid in (legacy_clients or list(legacy_flavor.keys())):
+                    client_configs[cid] = {
+                        'action': 'LoadRun',
                         'flavor': legacy_flavor.get(cid, ''),
                         'presentation_id': global_pid,
-                        'duration': global_dur
+                        'duration': '60'
                     }
             
-            logger.debug(f"Event Execution Map: {execution_map.keys()}")
+            if not client_configs:
+                logger.warning(f"No client configs for event {self.last_event_name}")
+                return
             
             clients = self.controller.get_configured_clients()
             if not clients:
-                 logger.warning("No configured clients found to dispatch event to.")
-
-            schedule_cfg = self.controller.config.get('schedule', {})
-            i2_prefixes = schedule_cfg.get('i2Prefixes', {})
-            layers_cfg = schedule_cfg.get('layers', {})
-            is_manual_cue = (category == "Cue Presentation" and not triggers)
-            if is_manual_cue:
-                logger.info("Manual Cue: Executing loadRun combo for all clients")
-                combo_triggers = {
-                    'trigger_i2_loadrun': True,
-                    'trigger_load_i1': True,
-                    'trigger_run_i1': True
-                }
-                tasks = []
-                for client in clients:
-                    tasks.append(asyncio.create_task(self._dispatch_client_event(client, execution_map, category, combo_triggers, event, layers_cfg)))
-                await asyncio.gather(*tasks)
-            else:
-                tasks = []
-                for client in clients:
-                    tasks.append(asyncio.create_task(self._dispatch_client_event(client, execution_map, category, triggers, event, layers_cfg)))
-                await asyncio.gather(*tasks)
+                logger.warning("No configured clients found to dispatch event to.")
+                return
+            is_manual = (triggers is None)
+            
+            tasks = []
+            for client in clients:
+                cid = client.get('id') or client.get('star')
+                conf = client_configs.get(cid) or client_configs.get(client.get('star'))
+                if not conf:
+                    continue
+                
+                task = asyncio.create_task(
+                    self._dispatch_client_action(client, conf, event, triggers, is_manual)
+                )
+                tasks.append(task)
+            
+            if tasks:
+                await asyncio.gather(*tasks, return_exceptions=True)
+                
         except Exception as e:
             logger.error(f"Error in _execute_single_event: {e}")
 
@@ -4265,261 +4246,288 @@ class scheduler:
         if output:
             self.controller.client_manager.log_output(client_id, output)
 
-    async def _dispatch_client_event(self, client_conf, execution_map, category, triggers, event, layers_cfg):
-        c_id = client_conf.get('id', '')
-        c_star = client_conf.get('star', '')
-        matched_config = None
-        if c_id in execution_map:
-            matched_config = execution_map[c_id]
-        elif c_star in execution_map:
-            matched_config = execution_map[c_star]
-        
-        if not matched_config:
-            # logger.debug(f"Client {c_id} ({c_star}) not in execution map.")
-            return
-        
-        logger.info(f"Dispatching event to client {c_id}...")
-
-        is_i1 = (c_star == "i1")
-        is_fuckingSTUPID = (c_star == "rai")
-        protocol = client_conf.get("protocol", "ssh")
-        creds = client_conf.get("credentials", {})
+    async def _dispatch_client_action(self, client, conf, event, triggers, is_manual):
+        """Execute action for a single client based on action card config (like QuickTimeEventTab)."""
+        cid = client.get('id') or client.get('star')
+        creds = client.get('credentials', {})
+        hostname = creds.get('hostname')
+        user = creds.get('user')
+        password = creds.get('password')
+        port = creds.get('port', 22)
+        star_type = client.get('star', 'unknown')
+        protocol = client.get('protocol', 'ssh')
+        action = conf.get('action', 'LoadRun')
+        flavor = conf.get('flavor', '')
+        pres_id = conf.get('presentation_id', '') or event.get('TargetID', '')
+        duration_seconds = int(conf.get('duration', 60)) if str(conf.get('duration', 60)).isdigit() else 60
+        duration = duration_seconds * 30
+        ldl_state = conf.get('ldl_state', '1')
+        cmd = conf.get('command', '') or event.get('CustomCommand', '')
+        is_i1 = (star_type == 'i1')
+        su = creds.get('su', 'dgadmin') if is_i1 else creds.get('su', None)
         registry = provision.get_connection_registry()
-        use_persistent = registry.get_session(c_id) is not None
+        use_persistent = registry.get_session(cid) is not None
+        logger.info(f"Dispatching action '{action}' to client {cid}...")
         
-        if category == 'Custom Command':
-            custom_cmd = event.get('CustomCommand', '')
-            if custom_cmd:
-                do_run = False
-                if triggers:
-                    if is_i1: do_run = triggers.get('trigger_run_i1', False)
-                    else: do_run = triggers.get('trigger_run_std', False)
-                else:
-                    do_run = True
-
-                if do_run:
-                    su = creds.get('su', 'dgadmin') if is_i1 else creds.get('su', None)
-                    if protocol == 'ssh':
-                        self.controller.stats['ssh_last'] = f"Custom Cmd -> {creds.get('hostname')}"
+        try:
+            if action == "Custom Command":
+                if not cmd:
+                    return
+                cmd_info = f"{protocol.upper()} Custom: {cmd[:50]}..." if len(cmd) > 50 else f"{protocol.upper()} Custom: {cmd}"
+                res = None
+                if protocol == 'ssh':
+                    if use_persistent:
+                        res = await provision.execute_ssh_persistent(cid, cmd, timeout=10.0, use_shell=bool(su))
+                    else:
+                        res = await provision.execute_ssh_command(
+                            hostname=hostname, user=user, password=password, port=port,
+                            command=cmd, su=su
+                        )
+                elif protocol == 'telnet':
+                    telnet_port = int(port) if port else 23
+                    if use_persistent:
+                        res = await provision.execute_telnet_persistent(cid, cmd, timeout=10.0)
+                    else:
+                        res = await provision.execute_telnet_command(
+                            hostname=hostname, port=telnet_port, command=cmd
+                        )
+                elif protocol == 'udp':
+                    udp_port = int(port) if port else 7787
+                    await provision.execute_udp_message(hostname=hostname, port=udp_port, message=cmd)
+                self._log_execution_result(cid, res, cmd_info)
+                return
+            if action == "Cancel":
+                final_id = pres_id if pres_id else ('local' if is_i1 else '1')
+                cmd_info = f"{protocol.upper()} Cancel pres_id={final_id}"
+                res = None
+                if protocol == 'ssh':
+                    if star_type.startswith('i2'):
+                        cancel_cmd = f'"{provision.i2exec}" cancelPres(PresentationId="{final_id}")'
                         if use_persistent:
-                            res = await provision.execute_ssh_persistent(c_id, custom_cmd, timeout=10.0, use_shell=bool(su))
+                            res = await provision.execute_ssh_persistent(cid, cancel_cmd, timeout=10.0, use_shell=bool(su))
                         else:
                             res = await provision.execute_ssh_command(
-                                hostname=creds.get('hostname'), user=creds.get('user'),
-                                password=creds.get('password'), port=creds.get('port', 22),
-                                command=custom_cmd, su=su
+                                hostname=hostname, user=user, password=password, port=port,
+                                command=cancel_cmd, su=su
                             )
-                        self._log_execution_result(c_id, res)
-                    elif protocol == 'udp':
-                        await provision.execute_udp_message(
-                            hostname=creds.get('hostname'),
-                            port=int(creds.get('port', 7787)),
-                            message=custom_cmd
-                        )
-            return
-        
-        if category != 'Cue Presentation':
-            return
-
-        raw_flavor = matched_config.get('flavor', '')
-        raw_pid = matched_config.get('presentation_id', '')
-        raw_dur = matched_config.get('duration', '')
-        raw_action = matched_config.get('action', '')
-        raw_ldl = matched_config.get('ldl_state', '1')
-
-        if is_i1 and (raw_flavor and raw_flavor.lower() == 'ldl' or raw_action == "LDL (On/Off)"):
-            target_state = int(raw_ldl) if str(raw_ldl).isdigit() else 1
-            ldl_cmd = f'runomni /twc/util/toggleNationalLDL.pyc {target_state}'
-            if protocol == "ssh":
-                self.controller.stats['ssh_last'] = f"i1 LDL Toggle {target_state} -> {creds.get('hostname')}"
-                if use_persistent:
-                    res = await provision.execute_ssh_persistent(c_id, ldl_cmd, timeout=10.0, use_shell=True)
-                else:
-                    res = await provision.ssh_toggleldl_i1(
-                        hostname=creds.get("hostname"), user=creds.get("user"),
-                        password=creds.get("password"), port=creds.get("port", 22),
-                        state=target_state, su=creds.get("su", "dgadmin")
-                    )
-                self._log_execution_result(c_id, res)
-            elif protocol == "telnet":
-                self.controller.stats['telnet_last'] = f"i1 LDL Toggle {target_state} -> {creds.get('hostname')}"
-                if use_persistent:
-                    res = await provision.execute_telnet_persistent(c_id, ldl_cmd, timeout=10.0)
-                else:
-                    res = await provision.telnet_toggleldl_i1(
-                        hostname=creds.get("hostname"), port=creds.get("port", 23),
-                        state=target_state, su=creds.get("su", "dgadmin"),
-                        user=creds.get("user"), password=creds.get("password")
-                    )
-                self._log_execution_result(c_id, res)
-            return
-
-        final_duration = 1950
-        
-        if not is_i1:
-            seconds = int(raw_dur) if str(raw_dur).isdigit() else 60
-            final_duration = seconds * 30
-
-        final_id = raw_pid
-        if not final_id:
-            if is_i1:
-                final_id = "local"
-            else:
-                final_id = layers_cfg.get('lf', '1')
-        if is_i1:
-                final_id = "local"
-        final_flavor = raw_flavor
-        
-        do_i2_loadrun = False
-        do_i1_load = False
-        do_i1_run = False
-        
-        if triggers:
-            do_i2_loadrun = triggers.get('trigger_i2_loadrun', False)
-            do_i1_load = triggers.get('trigger_load_i1', False)
-            do_i1_run = triggers.get('trigger_run_i1', False)
-        else:
-            do_i2_loadrun = True
-            do_i1_load = True
-            do_i1_run = True
-
-        if is_i1:
-            su = creds.get('su', 'dgadmin')
-            if do_i1_load and do_i1_run:
-                load_cmd = f'runomni /twc/util/load.pyc {final_id} {final_flavor.capitalize()}'
-                run_cmd = f'runomni /twc/util/run.pyc {final_id}'
-                
-                if protocol == "ssh":
-                    self.controller.stats['ssh_last'] = f"i1 LoadRun {final_flavor} -> {creds.get('hostname')}"
-                    if use_persistent:
-                        res1 = await provision.execute_ssh_persistent(c_id, load_cmd, timeout=10.0, use_shell=True)
-                        self._log_execution_result(c_id, res1, f"i1 Load {final_flavor}")
-                        await asyncio.sleep(2)
-                        res = await provision.execute_ssh_persistent(c_id, run_cmd, timeout=10.0, use_shell=True)
-                    else:
-                        res = await provision.ssh_loadrun_i1_pres(
-                            hostname=creds.get("hostname"), user=creds.get("user"),
-                            password=creds.get("password"), port=creds.get('port', 22),
-                            flavor=final_flavor, PresentationId=final_id, su=su
-                        )
-                    self._log_execution_result(c_id, res)
-                elif protocol == "telnet":
-                    self.controller.stats['telnet_last'] = f"i1 LoadRun {final_flavor} -> {creds.get('hostname')}"
-                    if use_persistent:
-                        res1 = await provision.execute_telnet_persistent(c_id, load_cmd, timeout=10.0)
-                        self._log_execution_result(c_id, res1, f"i1 Load {final_flavor}")
-                        await asyncio.sleep(2)
-                        res = await provision.execute_telnet_persistent(c_id, run_cmd, timeout=10.0)
-                    else:
-                        res = await provision.telnet_loadrun_i1_pres(
-                            hostname=creds.get("hostname"), port=creds.get("port", 23),
-                            flavor=final_flavor, PresentationId=final_id, su=su,
-                            user=creds.get("user"), password=creds.get("password")
-                        )
-                    self._log_execution_result(c_id, res)
-            else:
-                if do_i1_load:
-                    load_cmd = f'runomni /twc/util/load.pyc {final_id} {final_flavor.capitalize()}'
-                    if protocol == "ssh":
-                        self.controller.stats['ssh_last'] = f"i1 Load {final_flavor} -> {creds.get('hostname')}"
+                elif protocol == 'telnet':
+                    telnet_port = int(port) if port else 23
+                    if star_type.startswith('i2'):
                         if use_persistent:
-                            res = await provision.execute_ssh_persistent(c_id, load_cmd, timeout=10.0, use_shell=True)
+                            res = await provision.execute_telnet_persistent(cid, f'cancelPres(PresentationId="{final_id}")', timeout=10.0)
+                        else:
+                            res = await provision.telnet_cancel_i2_pres(
+                                hostname=hostname, port=telnet_port,
+                                PresentationId=final_id, user=user, password=password
+                            )
+                elif protocol == 'udp':
+                    udp_port = int(port) if port else 7787
+                    if star_type.startswith('i2'):
+                        await provision.execute_udp_cancel_i2_pres(
+                            hostname=hostname, port=udp_port, PresentationId=final_id
+                        )
+                elif protocol == 'subprocess':
+                    res = await provision.subproc_cancel_i2_pres(PresentationId=final_id)
+                self._log_execution_result(cid, res, cmd_info)
+                return
+            if is_i1 and action == "LDL (On/Off)":
+                target_state = int(ldl_state) if str(ldl_state).isdigit() else 1
+                cmd_info = f"{protocol.upper()} i1 LDL Toggle state={target_state}"
+                res = None
+                if protocol == 'ssh':
+                    if use_persistent:
+                        ldl_cmd = f'runomni /twc/util/toggleNationalLDL.pyc {target_state}'
+                        res = await provision.execute_ssh_persistent(cid, ldl_cmd, timeout=10.0, use_shell=True)
+                    else:
+                        res = await provision.ssh_toggleldl_i1(
+                            hostname=hostname, user=user, password=password, port=port,
+                            state=target_state, su=su
+                        )
+                elif protocol == 'telnet':
+                    telnet_port = int(port) if port else 23
+                    if use_persistent:
+                        ldl_cmd = f'runomni /twc/util/toggleNationalLDL.pyc {target_state}'
+                        res = await provision.execute_telnet_persistent(cid, ldl_cmd, timeout=10.0)
+                    else:
+                        res = await provision.telnet_toggleldl_i1(
+                            hostname=hostname, port=telnet_port,
+                            state=target_state, su=su, user=user, password=password
+                        )
+                self._log_execution_result(cid, res, cmd_info)
+                return
+            final_id = pres_id if pres_id else ('local' if is_i1 else '1')
+            i_type = "i1" if is_i1 else "i2"
+            cmd_info = f"{protocol.upper()} {i_type} {action} pres={final_id}"
+            res = None
+            
+            if is_i1:
+                if action == "LoadRun":
+                    if protocol == 'ssh':
+                        if use_persistent:
+                            load_cmd = f'runomni /twc/util/load.pyc {final_id} {flavor.capitalize()}'
+                            run_cmd = f'runomni /twc/util/run.pyc {final_id}'
+                            res1 = await provision.execute_ssh_persistent(cid, load_cmd, timeout=10.0, use_shell=True)
+                            self._log_execution_result(cid, res1, f"i1 Load {flavor}")
+                            await asyncio.sleep(2)
+                            res = await provision.execute_ssh_persistent(cid, run_cmd, timeout=10.0, use_shell=True)
+                        else:
+                            res = await provision.ssh_loadrun_i1_pres(
+                                hostname=hostname, user=user, password=password, port=port,
+                                flavor=flavor, PresentationId=final_id, su=su
+                            )
+                    elif protocol == 'telnet':
+                        telnet_port = int(port) if port else 23
+                        if use_persistent:
+                            load_cmd = f'runomni /twc/util/load.pyc {final_id} {flavor.capitalize()}'
+                            run_cmd = f'runomni /twc/util/run.pyc {final_id}'
+                            res1 = await provision.execute_telnet_persistent(cid, load_cmd, timeout=10.0)
+                            self._log_execution_result(cid, res1, f"i1 Load {flavor}")
+                            await asyncio.sleep(2)
+                            res = await provision.execute_telnet_persistent(cid, run_cmd, timeout=10.0)
+                        else:
+                            res = await provision.telnet_loadrun_i1_pres(
+                                hostname=hostname, port=telnet_port,
+                                flavor=flavor, PresentationId=final_id,
+                                user=user, password=password, su=su
+                            )
+                elif action == "Load":
+                    if protocol == 'ssh':
+                        if use_persistent:
+                            load_cmd = f'runomni /twc/util/load.pyc {final_id} {flavor.capitalize()}'
+                            res = await provision.execute_ssh_persistent(cid, load_cmd, timeout=10.0, use_shell=True)
                         else:
                             res = await provision.ssh_load_i1_pres(
-                                hostname=creds.get("hostname"), user=creds.get("user"),
-                                password=creds.get("password"), port=creds.get('port', 22),
-                                flavor=final_flavor, PresentationId=final_id, su=su
+                                hostname=hostname, user=user, password=password, port=port,
+                                flavor=flavor, PresentationId=final_id, su=su
                             )
-                        self._log_execution_result(c_id, res)
-                    elif protocol == "telnet":
-                        self.controller.stats['telnet_last'] = f"i1 Load {final_flavor} -> {creds.get('hostname')}"
+                    elif protocol == 'telnet':
+                        telnet_port = int(port) if port else 23
                         if use_persistent:
-                            res = await provision.execute_telnet_persistent(c_id, load_cmd, timeout=10.0)
+                            load_cmd = f'runomni /twc/util/load.pyc {final_id} {flavor.capitalize()}'
+                            res = await provision.execute_telnet_persistent(cid, load_cmd, timeout=10.0)
                         else:
                             res = await provision.telnet_load_i1_pres(
-                                hostname=creds.get("hostname"), port=creds.get("port", 23),
-                                flavor=final_flavor, PresentationId=final_id, su=su,
-                                user=creds.get("user"), password=creds.get("password")
+                                hostname=hostname, port=telnet_port,
+                                flavor=flavor, PresentationId=final_id,
+                                user=user, password=password, su=su
                             )
-                        self._log_execution_result(c_id, res)
-                if do_i1_run:
-                    run_cmd = f'runomni /twc/util/run.pyc {final_id}'
-                    if protocol == "ssh":
-                        self.controller.stats['ssh_last'] = f"i1 Run {final_id} -> {creds.get('hostname')}"
+                elif action == "Run":
+                    if protocol == 'ssh':
                         if use_persistent:
-                            res = await provision.execute_ssh_persistent(c_id, run_cmd, timeout=10.0, use_shell=True)
+                            run_cmd = f'runomni /twc/util/run.pyc {final_id}'
+                            res = await provision.execute_ssh_persistent(cid, run_cmd, timeout=10.0, use_shell=True)
                         else:
                             res = await provision.ssh_run_i1_pres(
-                                hostname=creds.get("hostname"), user=creds.get("user"),
-                                password=creds.get("password"), port=creds.get('port', 22),
-                                flavor=final_flavor, PresentationId=final_id, su=su
+                                hostname=hostname, user=user, password=password, port=port,
+                                flavor=flavor, PresentationId=final_id, su=su
                             )
-                        self._log_execution_result(c_id, res)
-                    elif protocol == "telnet":
-                        self.controller.stats['telnet_last'] = f"i1 Run {final_id} -> {creds.get('hostname')}"
+                    elif protocol == 'telnet':
+                        telnet_port = int(port) if port else 23
                         if use_persistent:
-                            res = await provision.execute_telnet_persistent(c_id, run_cmd, timeout=10.0)
+                            run_cmd = f'runomni /twc/util/run.pyc {final_id}'
+                            res = await provision.execute_telnet_persistent(cid, run_cmd, timeout=10.0)
                         else:
                             res = await provision.telnet_run_i1_pres(
-                                hostname=creds.get("hostname"), port=creds.get("port", 23),
-                                flavor=final_flavor, PresentationId=final_id, su=su,
-                                user=creds.get("user"), password=creds.get("password")
+                                hostname=hostname, port=telnet_port,
+                                flavor=flavor, PresentationId=final_id,
+                                user=user, password=password, su=su
                             )
-                        self._log_execution_result(c_id, res)
-        else:
-            su = creds.get('su', None)
-            i2exec = provision.i2exec
-
-            if do_i2_loadrun:
-                loadrun_cmd = f'"{i2exec}" loadRunPres(Flavor="{final_flavor}",Duration="{final_duration}",PresentationId="{final_id}")'
-                
-                if protocol == "ssh":
-                    self.controller.stats['ssh_last'] = f"LoadRun {final_id} -> {creds.get('hostname')}"
-                    if use_persistent:
-                        res = await provision.execute_ssh_persistent(c_id, loadrun_cmd, timeout=15.0, use_shell=bool(su))
-                    else:
-                        res = await provision.ssh_loadrun_i2_pres(
-                            hostname=creds.get("hostname"), user=creds.get("user"),
-                            password=creds.get("password"), port=creds.get("port", 22),
-                            flavor=final_flavor, PresentationId=final_id,
-                            duration=final_duration, su=su
-                        )
-                    self._log_execution_result(c_id, res)
-                elif protocol == "telnet":
-                    telnet_loadrun_cmd = f'loadRunPres(Flavor="{final_flavor}",Duration="{final_duration}",PresentationId="{final_id}")'
-                    self.controller.stats['telnet_last'] = f"LoadRun {final_id} -> {creds.get('hostname')}"
-                    if use_persistent:
-                        res = await provision.execute_telnet_persistent(c_id, telnet_loadrun_cmd, timeout=15.0)
-                    else:
-                        res = await provision.telnet_loadrun_i2_pres(
-                            hostname=creds.get("hostname"), port=creds.get("port", 23),
-                            flavor=final_flavor, PresentationId=final_id,
-                            duration=final_duration,
-                            user=creds.get("user"), password=creds.get("password")
-                        )
-                    self._log_execution_result(c_id, res)
-                elif protocol == "subprocess":
-                    self.controller.stats['sub_last'] = f"LoadRun {final_id}"
-                    res = await provision.subproc_loadrun_i2_pres(
-                        flavor=final_flavor, PresentationId=final_id,
-                        duration=final_duration
-                    )
-                    self._log_execution_result(c_id, res)
-
-                elif protocol == "udp":
-                        self.controller.stats['udp_last'] = f"LoadRun {final_id} -> {creds.get('hostname')}"
+            else:
+                if action == "LoadRun":
+                    if protocol == 'ssh':
+                        if use_persistent:
+                            loadrun_cmd = f'"{provision.i2exec}" loadRunPres(Flavor="{flavor}",Duration="{duration}",PresentationId="{final_id}")'
+                            res = await provision.execute_ssh_persistent(cid, loadrun_cmd, timeout=15.0, use_shell=bool(su))
+                        else:
+                            res = await provision.ssh_loadrun_i2_pres(
+                                hostname=hostname, user=user, password=password, port=port,
+                                flavor=flavor, PresentationId=final_id, duration=duration, su=su
+                            )
+                    elif protocol == 'telnet':
+                        telnet_port = int(port) if port else 23
+                        if use_persistent:
+                            res = await provision.execute_telnet_persistent(cid, f'loadRunPres(Flavor="{flavor}",Duration="{duration}",PresentationId="{final_id}")', timeout=15.0)
+                        else:
+                            res = await provision.telnet_loadrun_i2_pres(
+                                hostname=hostname, port=telnet_port,
+                                flavor=flavor, PresentationId=final_id, duration=duration,
+                                user=user, password=password
+                            )
+                    elif protocol == 'udp':
+                        udp_port = int(port) if port else 7787
                         await provision.execute_udp_load_i2_pres(
-                            hostname=creds.get("hostname"),
-                            port=int(creds.get("port", 7787)),
-                            flavor=final_flavor,
-                            PresentationId=final_id,
-                            duration=final_duration
+                            hostname=hostname, port=udp_port,
+                            flavor=flavor, PresentationId=final_id, duration=duration
                         )
                         await provision.execute_udp_run_i2_pres(
-                            hostname=creds.get("hostname"),
-                            port=int(creds.get("port", 7787)),
-                            PresentationId=final_id
+                            hostname=hostname, port=udp_port, PresentationId=final_id
                         )
+                        cmd_info = f"UDP i2 LoadRun pres={final_id}"
+                    elif protocol == 'subprocess':
+                        res = await provision.subproc_loadrun_i2_pres(
+                            flavor=flavor, PresentationId=final_id, duration=duration
+                        )
+                elif action == "Load":
+                    if protocol == 'ssh':
+                        if use_persistent:
+                            load_cmd = f'"{provision.i2exec}" loadPres(Flavor="{flavor}",Duration="{duration}",PresentationId="{final_id}")'
+                            res = await provision.execute_ssh_persistent(cid, load_cmd, timeout=15.0, use_shell=bool(su))
+                        else:
+                            res = await provision.ssh_load_i2_pres(
+                                hostname=hostname, user=user, password=password, port=port,
+                                flavor=flavor, PresentationId=final_id, duration=duration, su=su
+                            )
+                    elif protocol == 'telnet':
+                        telnet_port = int(port) if port else 23
+                        if use_persistent:
+                            res = await provision.execute_telnet_persistent(cid, f'loadPres(Flavor="{flavor}",Duration="{duration}",PresentationId="{final_id}")', timeout=15.0)
+                        else:
+                            res = await provision.telnet_load_i2_pres(
+                                hostname=hostname, port=telnet_port,
+                                flavor=flavor, PresentationId=final_id, duration=duration,
+                                user=user, password=password
+                            )
+                    elif protocol == 'udp':
+                        udp_port = int(port) if port else 7787
+                        await provision.execute_udp_load_i2_pres(
+                            hostname=hostname, port=udp_port,
+                            flavor=flavor, PresentationId=final_id, duration=duration
+                        )
+                    elif protocol == 'subprocess':
+                        res = await provision.subproc_load_i2_pres(
+                            flavor=flavor, PresentationId=final_id, duration=duration
+                        )
+                elif action == "Run":
+                    if protocol == 'ssh':
+                        if use_persistent:
+                            run_cmd = f'"{provision.i2exec}" runPres(PresentationId="{final_id}")'
+                            res = await provision.execute_ssh_persistent(cid, run_cmd, timeout=15.0, use_shell=bool(su))
+                        else:
+                            res = await provision.ssh_run_i2_pres(
+                                hostname=hostname, user=user, password=password, port=port,
+                                PresentationId=final_id, su=su
+                            )
+                    elif protocol == 'telnet':
+                        telnet_port = int(port) if port else 23
+                        if use_persistent:
+                            res = await provision.execute_telnet_persistent(cid, f'runPres(PresentationId="{final_id}")', timeout=15.0)
+                        else:
+                            res = await provision.telnet_run_i2_pres(
+                                hostname=hostname, port=telnet_port,
+                                PresentationId=final_id, user=user, password=password
+                            )
+                    elif protocol == 'udp':
+                        udp_port = int(port) if port else 7787
+                        await provision.execute_udp_run_i2_pres(
+                            hostname=hostname, port=udp_port, PresentationId=final_id
+                        )
+                    elif protocol == 'subprocess':
+                        res = await provision.subproc_run_i2_pres(PresentationId=final_id)
+            
+            self._log_execution_result(cid, res, cmd_info)
+                    
+        except Exception as e:
+            logger.error(f"[{cid}] Dispatch action error: {e}")
 
 if __name__ == "__main__":
     controller = star_controller()

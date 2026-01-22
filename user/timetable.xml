@@ -253,61 +253,6 @@
         </flavor>
     </event>
     <event>
-        <DisplayName>cancel ldl</DisplayName>
-        <Category>Cancel Presentation</Category>
-        <TargetID>ldl1</TargetID>
-        <CustomCommand />
-        <MinuteInterval>8</MinuteInterval>
-        <TenMinuteInterval>
-            <TenMinute>00</TenMinute>
-            <TenMinute>10</TenMinute>
-            <TenMinute>20</TenMinute>
-            <TenMinute>30</TenMinute>
-            <TenMinute>40</TenMinute>
-            <TenMinute>50</TenMinute>
-        </TenMinuteInterval>
-        <Hours />
-        <Days>
-            <Day>Monday</Day>
-            <Day>Tuesday</Day>
-            <Day>Wednesday</Day>
-            <Day>Thursday</Day>
-            <Day>Friday</Day>
-            <Day>Saturday</Day>
-            <Day>Sunday</Day>
-        </Days>
-        <Weeks>
-            <Week>1</Week>
-            <Week>2</Week>
-            <Week>3</Week>
-            <Week>4</Week>
-            <Week>5</Week>
-        </Weeks>
-        <Months>
-            <Month>1</Month>
-            <Month>2</Month>
-            <Month>3</Month>
-            <Month>4</Month>
-            <Month>5</Month>
-            <Month>6</Month>
-            <Month>7</Month>
-            <Month>8</Month>
-            <Month>9</Month>
-            <Month>10</Month>
-            <Month>11</Month>
-            <Month>12</Month>
-        </Months>
-        <RunAtStartup>False</RunAtStartup>
-        <Enabled>True</Enabled>
-        <ClientConfigs />
-        <clients>
-            <client>i2xd_172_16_1_31</client>
-            <client>i2jr_172_16_1_32</client>
-            <client>i1_172_16_1_39</client>
-        </clients>
-        <flavor />
-    </event>
-    <event>
         <DisplayName>azul</DisplayName>
         <Category>Cue Presentation</Category>
         <TargetID />
@@ -431,9 +376,9 @@
         </flavor>
     </event>
     <event>
-        <DisplayName>cancelXDSidebar</DisplayName>
-        <Category>Cancel Presentation</Category>
-        <TargetID>sidebar1</TargetID>
+        <DisplayName>Cancel LDL and SideBar</DisplayName>
+        <Category>Cue Presentation</Category>
+        <TargetID />
         <CustomCommand />
         <MinuteInterval>8</MinuteInterval>
         <TenMinuteInterval>
@@ -477,8 +422,20 @@
         </Months>
         <RunAtStartup>False</RunAtStartup>
         <Enabled>True</Enabled>
-        <ClientConfigs />
+        <ClientConfigs>
+            <ClientConfig id="i2xd_172_16_1_31">
+                <Action>Cancel</Action>
+                <Flavor />
+                <PresentationID>sidebar1</PresentationID>
+                <Duration />
+                <Logo />
+                <Command />
+                <SU />
+                <LDLState />
+            </ClientConfig>
+        </ClientConfigs>
         <clients>
+            <client>i2xd_172_16_1_31</client>
             <client>i2xd_172_16_1_31</client>
         </clients>
         <flavor />
