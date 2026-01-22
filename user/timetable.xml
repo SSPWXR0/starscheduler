@@ -72,11 +72,9 @@
         <clients>
             <client>i2xd_172_16_1_31</client>
             <client>i1_172_16_1_39</client>
-            <client>i1_172_16_1_39</client>
         </clients>
         <flavor>
             <flavor client="i2xd_172_16_1_31">domestic/ldlssp</flavor>
-            <flavor client="i1_172_16_1_39">domesticsd/LDLI</flavor>
         </flavor>
     </event>
     <event>
@@ -133,24 +131,12 @@
                 <SU />
                 <LDLState />
             </ClientConfig>
-            <ClientConfig id="i1_172_16_1_39">
-                <Action>LoadRun</Action>
-                <Flavor>domesticsd/V</Flavor>
-                <PresentationID />
-                <Duration />
-                <Logo />
-                <Command />
-                <SU />
-                <LDLState />
-            </ClientConfig>
         </ClientConfigs>
         <clients>
             <client>i2xd_172_16_1_31</client>
-            <client>i1_172_16_1_39</client>
         </clients>
         <flavor>
             <flavor client="i2xd_172_16_1_31">domestic/V</flavor>
-            <flavor client="i1_172_16_1_39">domesticsd/V</flavor>
         </flavor>
     </event>
     <event>
@@ -196,23 +182,21 @@
         <Enabled>True</Enabled>
         <ClientConfigs>
             <ClientConfig id="i2xd_172_16_1_31">
+                <Action>LoadRun</Action>
                 <Flavor>domestic/N</Flavor>
                 <PresentationID>1</PresentationID>
                 <Duration>75</Duration>
-            </ClientConfig>
-            <ClientConfig id="i2jr_172_16_1_32">
-                <Flavor>domesticsd/N</Flavor>
-                <PresentationID>1</PresentationID>
-                <Duration>65</Duration>
+                <Logo />
+                <Command />
+                <SU />
+                <LDLState />
             </ClientConfig>
         </ClientConfigs>
         <clients>
             <client>i2xd_172_16_1_31</client>
-            <client>i2jr_172_16_1_32</client>
         </clients>
         <flavor>
             <flavor client="i2xd_172_16_1_31">domestic/N</flavor>
-            <flavor client="i2jr_172_16_1_32">domesticsd/N</flavor>
         </flavor>
     </event>
     <event>
@@ -368,23 +352,21 @@
         <Enabled>True</Enabled>
         <ClientConfigs>
             <ClientConfig id="i2xd_172_16_1_31">
+                <Action>LoadRun</Action>
                 <Flavor>domestic/azul</Flavor>
                 <PresentationID>1</PresentationID>
                 <Duration>120</Duration>
-            </ClientConfig>
-            <ClientConfig id="i2jr_172_16_1_32">
-                <Flavor>domesticsd/azul i2 jr</Flavor>
-                <PresentationID>1</PresentationID>
-                <Duration>90</Duration>
+                <Logo />
+                <Command />
+                <SU />
+                <LDLState />
             </ClientConfig>
         </ClientConfigs>
         <clients>
             <client>i2xd_172_16_1_31</client>
-            <client>i2jr_172_16_1_32</client>
         </clients>
         <flavor>
             <flavor client="i2xd_172_16_1_31">domestic/azul</flavor>
-            <flavor client="i2jr_172_16_1_32">domesticsd/azul i2 jr</flavor>
         </flavor>
     </event>
     <event>

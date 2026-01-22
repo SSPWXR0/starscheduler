@@ -3613,7 +3613,6 @@ class scheduler:
         self.cached_events = []
         self.cached_mtime = 0
         self.cache_lock = threading.Lock()
-        
         self.last_event_offset = 0.0
         self.next_event_name = "None"
         self.next_event_time = "N/A"
@@ -3621,11 +3620,10 @@ class scheduler:
         self.total_client_warnings = 0
         self.next_event_dt = None
         self.loop = None
-
         self._perf = get_perf_config()
         self._cache_interval = self._perf['cacheUpdateIntervalSec']
         self._poll_interval_sec = self._perf['schedulerPollIntervalMs'] / 1000.0
-        
+        self._update_cache()
         self.cache_thread = threading.Thread(target=self._cache_loop, daemon=True, name="SchedulerCacheThread")
         self.cache_thread.start()
         self.thread = threading.Thread(target=self._run_async_loop, daemon=True, name="SchedulerLoopThread")
@@ -3660,7 +3658,7 @@ class scheduler:
         try:
             if os.path.exists(self.timetable_file):
                 current_mtime = os.path.getmtime(self.timetable_file)
-                if current_mtime != self.cached_mtime:
+                if self.cached_mtime == 0 or current_mtime != self.cached_mtime:
                     try:
                         tree = ET.parse(self.timetable_file)
                         root = tree.getroot()
@@ -3992,23 +3990,21 @@ class scheduler:
             pass
 
     async def run_scheduler_loop(self):
+        wait_start = datetime.now()
         while self.cached_mtime == 0 and self.running:
+            if (datetime.now() - wait_start).total_seconds() > 5:
+                logger.warning("Cache not loaded after 5s, forcing update")
+                self._update_cache()
+                break
             await asyncio.sleep(0.1)
         
         logger.info("Scheduler loop started")
         last_fired_minute = -1
         fired_triggers = set()
-
-        drift_check_interval = timedelta(seconds=60)
-        drift_check_time = datetime.now() + drift_check_interval
-        drift_period_start = datetime.now()
-        iterations_this_period = 0
         
         TRIGGER_SECONDS = [50, 58]
-
-        next_prediction_second = (datetime.now().second // 5) * 5 + 5
-        if next_prediction_second >= 60:
-            next_prediction_second = 0
+        REALIGN_INTERVAL = 30
+        last_realign_second = -1
         
         if not self.startup_event_fired:
             all_events = self.grab_all_events()
@@ -4025,17 +4021,20 @@ class scheduler:
         while self.running:
             try:
                 now = datetime.now()
-                current_hour = now.hour
-                current_minute = now.minute
                 current_second = now.second
                 current_ms = now.microsecond // 1000
+                current_hour = now.hour
+                current_minute = now.minute
                 minute_key = (current_hour, current_minute)
-                
+                realign_boundary = (current_second // REALIGN_INTERVAL) * REALIGN_INTERVAL
+                if realign_boundary != last_realign_second:
+                    last_realign_second = realign_boundary
+                    if current_ms < 100:
+                        logger.debug(f"Wall-clock realign at :{current_second:02d}.{current_ms:03d}")
                 if current_minute != last_fired_minute:
                     fired_triggers.clear()
                     last_fired_minute = current_minute
-
-                if current_second % 5 == 0 and current_ms < 150:
+                if current_second % 5 == 0 and current_ms < 100:
                     self._update_prediction(now)
                     
                 if self.next_event_dt:
@@ -4052,16 +4051,15 @@ class scheduler:
                 for trigger_sec in TRIGGER_SECONDS:
                     trigger_key = (minute_key, trigger_sec)
 
-                    if current_second >= trigger_sec and current_second < trigger_sec + 10:
+                    if current_second >= trigger_sec and current_second < trigger_sec + 8:
                         if trigger_key not in fired_triggers:
                             fired_triggers.add(trigger_key)
 
-                            seconds_late = current_second - trigger_sec
                             ms_late = (current_second - trigger_sec) * 1000 + current_ms
                             if ms_late > 500:
                                 logger.warning(f"Trigger sec={trigger_sec} is {ms_late}ms late (fired at :{current_second}.{current_ms:03d})")
                             
-                            is_48_trigger = (trigger_sec == 48)
+                            is_48_trigger = (trigger_sec == 48 or trigger_sec == 50)
                             is_58_trigger = (trigger_sec == 58)
                             
                             all_events = self.grab_all_events()
@@ -4081,32 +4079,21 @@ class scheduler:
                                     logger.info(f"Firing trigger sec={trigger_sec} for: {ev.get('DisplayName')} at {now.strftime('%H:%M:%S.%f')[:-3]}")
                                     asyncio.create_task(self._execute_single_event(ev, t_ctx))
                 
-                iterations_this_period += 1
                 now_after = datetime.now()
-                current_us = now_after.microsecond
-                next_boundary_us = ((current_us // 50000) + 1) * 50000
-                if next_boundary_us >= 1000000:
-                    sleep_us = (1000000 - current_us) + 0
+                us = now_after.microsecond
+                boundary = 25000
+                next_boundary = ((us // boundary) + 1) * boundary
+                if next_boundary >= 1000000:
+                    sleep_us = 1000000 - us
                 else:
-                    sleep_us = next_boundary_us - current_us
-                
-                sleep_time = sleep_us / 1000000.0
-                sleep_time = max(0.005, min(sleep_time, 0.055))
-                if now_after >= drift_check_time:
-                    elapsed = (now_after - drift_period_start).total_seconds()
-                    expected_iters = int(elapsed * 20)
-                    drift_ratio = iterations_this_period / expected_iters if expected_iters > 0 else 1.0
-                    if abs(1.0 - drift_ratio) > 0.02:
-                        logger.warning(f"Scheduler drift: {drift_ratio:.3f}x ({iterations_this_period}/{expected_iters} iters in {elapsed:.1f}s)")
-                    iterations_this_period = 0
-                    drift_period_start = now_after
-                    drift_check_time = now_after + drift_check_interval
-                
-                await asyncio.sleep(sleep_time)
+                    sleep_us = next_boundary - us
+                sleep_sec = sleep_us / 1000000.0
+                sleep_sec = max(0.005, min(sleep_sec, 0.030))
+                await asyncio.sleep(sleep_sec)
                 
             except Exception as e:
                 logger.error(f"Scheduler Loop Error: {e}")
-                await asyncio.sleep(0.05)
+                await asyncio.sleep(0.025)
 
     def _update_prediction(self, now):
         try:
