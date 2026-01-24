@@ -379,23 +379,6 @@
         <flavor />
     </event>
     <event>
-        <DisplayName />
-        <Category>Cue Presentation</Category>
-        <TargetID />
-        <CustomCommand />
-        <MinuteInterval />
-        <TenMinuteInterval />
-        <Hours />
-        <Days />
-        <Weeks />
-        <Months />
-        <RunAtStartup>False</RunAtStartup>
-        <Enabled>True</Enabled>
-        <ClientConfigs />
-        <clients />
-        <flavor />
-    </event>
-    <event>
         <DisplayName>enhanced</DisplayName>
         <Category>Cue Presentation</Category>
         <TargetID />
