@@ -19,7 +19,19 @@ import queue
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Any, Dict, List, Set, Callable
+
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
+from apscheduler.events import (
+    EVENT_JOB_EXECUTED, EVENT_JOB_ERROR, EVENT_JOB_MISSED,
+    JobExecutionEvent
+)
+try:
+    from tzlocal import get_localzone
+    local_timezone = get_localzone()
+except ImportError:
+    local_timezone = None
 
 if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
@@ -39,7 +51,6 @@ _perf_config = {
 }
 
 def load_performance_config(config: dict) -> None:
-    """Load performance settings from config dict."""
     global _perf_config
     perf = config.get('system', {}).get('performance', {})
     _perf_config.update({
@@ -52,14 +63,7 @@ def load_performance_config(config: dict) -> None:
                 f"pollInterval={_perf_config['schedulerPollIntervalMs']}ms")
 
 def get_perf_config() -> dict:
-    """Get current performance configuration."""
     return _perf_config.copy()
-
-try:
-    import telnetlib3
-except ImportError:
-    telnetlib3 = None
-    print("telnetlib3 not found; Telnet support will be disabled.")
 
 connected_outputs = 0
 connected_outputs_data = []
@@ -71,7 +75,7 @@ window_height = 960
 
 STAR_NAMES = {
     "i1": "IntelliStar 1",
-    "i2": "IntelliStar 2",
+    "i2": "generic IntelliStar 2",
     "i2hd": "IntelliStar 2 HD",
     "i2jr": "IntelliStar 2 Jr",
     "i2xd": "IntelliStar 2 XD",
@@ -249,7 +253,6 @@ class ConnectionThread(QtCore.QThread):
                 self.loop = None
     
     def stop(self):
-        """Request the thread to stop gracefully."""
         self._stop_requested = True
         if self.loop and self.loop.is_running():
             self.loop.call_soon_threadsafe(self.loop.stop)
@@ -408,7 +411,7 @@ class ClientDialog(QtWidgets.QDialog):
             "- Subprocess can be used with exec.exe, which is available on all IntelliStar 2 systems\n"
             "- SSH is supported on all Star systems.\n"
             "- Although UDP communication is currently experimental, it should be able to work on all Star systems.\n"
-            "- Telnet is supported on IntelliStar and IntelliStar 2s running Windows 7 or a third-party Telnet server otherwise."
+            "- Telnet is supported on WeatherStar XL, IntelliStar, IntelliStar 2s running Windows 7 or a third-party Telnet server otherwise."
         )
         footnote_label = QtWidgets.QLabel(footnote_text)
         footnote_label.setStyleSheet("color: #888; font-size: 11px; font-style: italic; margin: 10px 0;")
@@ -1632,7 +1635,6 @@ class QuickTimeEventTab(QtWidgets.QWidget):
         su = creds.get('su', 'dgadmin') if is_i1 else creds.get('su', None)
         
         def log_result(res, cmd_info):
-            """Log execution result to client logs."""
             output = f"[COMMAND] {cmd_info}\n"
             if res and isinstance(res, tuple) and len(res) == 2:
                 stdout, stderr = res
@@ -1832,7 +1834,6 @@ class QuickTimeEventTab(QtWidgets.QWidget):
             logger.error(f"[{cid}] Quick Time Event error: {e}")
     
     def _run_batch_logic_sync(self, target_clients, client_configs):
-        """Fallback sync batch execution."""
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
@@ -2360,7 +2361,8 @@ class SchedulerTab(QtWidgets.QWidget):
     def __init__(self, controller):
         super().__init__()
         self.controller = controller
-        self.scheduler = scheduler(self.controller) 
+        self.scheduler = EventSchedulerEngine(self.controller)
+        self.scheduler.start()
         self.last_highlighted_row = -1
         self._setup_ui()
         self.refresh_grid()
@@ -3220,7 +3222,7 @@ class user_interface:
             "- Subprocess can be used with exec.exe, which is available on all IntelliStar 2 systems\n"
             "- SSH is supported on all Stars.\n"
             "- Although UDP communication is currently experimental, it should be able to work on all IntelliStar systems.\n"
-            "- Telnet is supported on IntelliStar and IntelliStar 2s running Windows 7 or a third-party Telnet server otherwise."
+            "- Telnet is supported on WeatherStar XL, IntelliStar and IntelliStar 2s running Windows 7 or a third-party Telnet server otherwise."
         )
         footnote_label = QtWidgets.QLabel(footnote_text)
         footnote_label.setStyleSheet("color: #888888; font-size: 11px; font-style: italic; margin: 10px 0;")
@@ -3367,7 +3369,6 @@ class star_controller:
         self.connection_registry = None
     
     def init_persistent_connections(self, async_loop=None):
-        """Initialize the persistent connection registry for all clients."""
         clients = self.get_configured_clients()
         if not clients:
             logger.warning("No clients configured for persistent connections")
@@ -3423,7 +3424,6 @@ class star_controller:
                     else:
                         logger.info("This isn't Windows... How are you even running I2 on this thing???????")
                         return None
-
                     return {
                         "id": client.get("id"),
                         "hostname": creds.get("hostname", "localhost"),
@@ -3433,7 +3433,6 @@ class star_controller:
                     }
 
             elif protocol == "udp":
-                 # send it out... and hope it ends up somewhere... (Preferablly I2's MsgIngester)
                  return {
                     "id": client.get("id"),
                     "hostname": creds.get("hostname", "224.1.1.77"),
@@ -3482,13 +3481,11 @@ class star_controller:
         clients = self.get_configured_clients()
     
 class ClientWorker:
-    """Lightweight worker for client-specific tasks with dynamic thread allocation."""
     _shared_executor: Optional[ThreadPoolExecutor] = None
     _executor_lock = threading.Lock()
     
     @classmethod
     def get_shared_executor(cls) -> ThreadPoolExecutor:
-        """Get or create a shared executor for all client workers (reduces thread overhead)."""
         if cls._shared_executor is None:
             with cls._executor_lock:
                 if cls._shared_executor is None:
@@ -3599,560 +3596,374 @@ class ClientManager:
 class LogSignalProxy(QtCore.QObject):
     log_received = QtCore.pyqtSignal(str, str)
 
-class scheduler:
-    """High-efficiency event scheduler with configurable polling intervals."""
-    
+
+class EventSchedulerEngine:
+
+    TRIGGER_OFFSETS = {
+        'prepare': 50,
+        'execute': 58,
+    }
+
     def __init__(self, controller):
         self.controller = controller
         self.timetable_file = os.path.join(os.path.dirname(__file__), "user", "timetable.xml")
-        self.running = True
-        self.startup_event_fired = False
+        self._scheduler: Optional[BackgroundScheduler] = None
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._thread: Optional[threading.Thread] = None
+        self._running = False
+        self._cached_events: List[Dict] = []
+        self._cached_mtime: float = 0
+        self._cache_lock = threading.Lock()
         self.last_event_name = "None"
         self.last_event_time = "N/A"
-        self.next_check_time = "Scanning..."
-        self.cached_events = []
-        self.cached_mtime = 0
-        self.cache_lock = threading.Lock()
         self.last_event_offset = 0.0
         self.next_event_name = "None"
         self.next_event_time = "N/A"
         self.next_event_countdown = "00:00:00"
+        self.next_event_dt: Optional[datetime] = None
+        self.next_check_time = "Scanning..."
+        self.startup_event_fired = False
         self.total_client_warnings = 0
-        self.next_event_dt = None
-        self.loop = None
-        self._perf = get_perf_config()
-        self._cache_interval = self._perf['cacheUpdateIntervalSec']
-        self._poll_interval_sec = self._perf['schedulerPollIntervalMs'] / 1000.0
-        self._update_cache()
-        self.cache_thread = threading.Thread(target=self._cache_loop, daemon=True, name="SchedulerCacheThread")
-        self.cache_thread.start()
-        self.thread = threading.Thread(target=self._run_async_loop, daemon=True, name="SchedulerLoopThread")
-        self.thread.start()
-
-    def _cache_loop(self):
-        """Cache update loop with absolute wall-clock timing."""
-        cache_interval_sec = self._cache_interval
-        last_cache_second = -1
+        self._event_jobs: Dict[str, List[str]] = {}
+        self._countdown_job_id: Optional[str] = None
         
-        while self.running:
-            now = datetime.now()
-            current_second = now.second
-
-            aligned_second = (current_second // cache_interval_sec) * cache_interval_sec
+    def start(self):
+        if self._running:
+            logger.warning("Scheduler already running")
+            return
             
-            if aligned_second != last_cache_second and current_second % cache_interval_sec == 0:
-                self._update_cache()
-                last_cache_second = aligned_second
-
-            current_us = now.microsecond
-            next_boundary_us = ((current_us // 500000) + 1) * 500000
-            if next_boundary_us >= 1000000:
-                sleep_us = 1000000 - current_us
-            else:
-                sleep_us = next_boundary_us - current_us
+        self._running = True
+        self._loop = asyncio.new_event_loop()
+        self._thread = threading.Thread(
+            target=self._loop.run_forever,
+            daemon=True,
+            name="SchedulerEventLoop"
+        )
+        self._thread.start()
+        self._scheduler = BackgroundScheduler(
+            timezone=local_timezone,
+            job_defaults={
+                'coalesce': True,
+                'max_instances': 8,
+                'misfire_grace_time': 6
+            }
+        )
+        self._scheduler.add_listener(
+            self._on_job_event,
+            EVENT_JOB_EXECUTED | EVENT_JOB_ERROR | EVENT_JOB_MISSED
+        )
+        self._scheduler.start()
+        self._do_initial_setup()
+        self._scheduler.add_job(
+            self._check_timetable_changes,
+            'interval',
+            seconds=2,
+            id='timetable_watcher',
+            replace_existing=True
+        )
+        self._countdown_job_id = 'countdown_updater'
+        self._scheduler.add_job(
+            self._update_countdown,
+            'interval',
+            seconds=1,
+            id=self._countdown_job_id,
+            replace_existing=True
+        )
+        
+        logger.info("APScheduler engine started")
+        
+    def stop(self):
+        self._running = False
+        if self._scheduler:
+            try:
+                self._scheduler.shutdown(wait=False)
+            except Exception:
+                pass
+        if self._loop:
+            self._loop.call_soon_threadsafe(self._loop.stop)
+        logger.info("APScheduler engine stopped")
+        
+    def _do_initial_setup(self):
+        try:
+            self.controller.scheduler = self
+            self.controller.init_persistent_connections(self._loop)
+        except Exception as e:
+            logger.warning(f"Failed to initialize persistent connections: {e}")
+        self._reload_events()
+        self._schedule_all_events()
+        if not self.startup_event_fired:
+            try:
+                future = asyncio.run_coroutine_threadsafe(
+                    self._fire_startup_events(), 
+                    self._loop
+                )
+                future.result(timeout=30)
+            except Exception as e:
+                logger.error(f"Error firing startup events: {e}")
+            self.startup_event_fired = True
             
-            sleep_time = max(0.05, min(sleep_us / 1000000.0, 0.55))
-            time.sleep(sleep_time)
-
-    def _update_cache(self):
+    async def _fire_startup_events(self):
+        events = self.grab_all_events()
+        tasks = []
+        for event in events:
+            if event.get('RunAtStartup', False) and event.get('Enabled', True):
+                logger.info(f"Firing startup event: {event.get('DisplayName')}")
+                tasks.append(self._execute_event(event, triggers=None, is_startup=True))
+        
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+            
+    def _check_timetable_changes(self):
         try:
             if os.path.exists(self.timetable_file):
                 current_mtime = os.path.getmtime(self.timetable_file)
-                if self.cached_mtime == 0 or current_mtime != self.cached_mtime:
-                    try:
-                        tree = ET.parse(self.timetable_file)
-                        root = tree.getroot()
-                        events = []
-                        for event_elem in root.findall('event'):
-                            event = {}
-                            for tag in ['DisplayName', 'CustomCommand', 'MinuteInterval']:
-                                el = event_elem.find(tag)
-                                event[tag] = el.text if el is not None and el.text else ""
-                            en_text = event_elem.find('Enabled')
-                            event['Enabled'] = (en_text.text.lower() == 'true') if en_text is not None and en_text.text else False
-                            startup_text = event_elem.find('RunAtStartup')
-                            event['RunAtStartup'] = (startup_text.text.lower() == 'true') if startup_text is not None and startup_text.text else False
-                            tm_elem = event_elem.find('TenMinuteInterval')
-                            if tm_elem is not None:
-                                event['TenMinuteInterval'] = [e.text for e in tm_elem.findall('TenMinute') if e.text]
-                            else:
-                                event['TenMinuteInterval'] = []
-                            days_elem = event_elem.find('Days')
-                            if days_elem is not None:
-                                event['Days'] = [e.text for e in days_elem.findall('Day') if e.text]
-                            else:
-                                event['Days'] = []
-                            weeks_elem = event_elem.find('Weeks')
-                            if weeks_elem is not None:
-                                event['Weeks'] = [e.text for e in weeks_elem.findall('Week') if e.text]
-                            else:
-                                event['Weeks'] = []
-                            months_elem = event_elem.find('Months')
-                            if months_elem is not None:
-                                event['Months'] = [e.text for e in months_elem.findall('Month') if e.text]
-                            else:
-                                event['Months'] = []
-                            clients_elem = event_elem.find('clients')
-                            if clients_elem is not None:
-                                event['clients'] = [e.text for e in clients_elem.findall('client') if e.text]
-                            else:
-                                event['clients'] = []
-                            cat_elem = event_elem.find('Category')
-                            event['Category'] = cat_elem.text if cat_elem is not None and cat_elem.text else "Cue Presentation"
-
-                            tid_elem = event_elem.find('TargetID')
-                            event['TargetID'] = tid_elem.text if tid_elem is not None and tid_elem.text else ""
-                            hours_elem = event_elem.find('Hours')
-                            event['Hours'] = []
-                            if hours_elem is not None:
-                                for h_el in hours_elem.findall('Hour'):
-                                    event['Hours'].append({
-                                        'hour': h_el.text,
-                                        'period': h_el.get('period', 'AM/PM')
-                                    })
-                            flavors_elem = event_elem.find('flavor')
-                            event['flavor'] = {}
-                            if flavors_elem is not None:
-                                for f_el in flavors_elem.findall('flavor'):
-                                    client_key = f_el.get('client')
-                                    if client_key:
-                                        event['flavor'][client_key] = f_el.text
-                            cc_elem = event_elem.find('ClientConfigs')
-                            event['client_config'] = {}
-                            if cc_elem is not None:
-                                for cf in cc_elem.findall('ClientConfig'):
-                                    cid = cf.get('id')
-                                    config = {
-                                        'action': cf.find('Action').text if cf.find('Action') is not None else "LoadRun",
-                                        'flavor': cf.find('Flavor').text if cf.find('Flavor') is not None else "",
-                                        'presentation_id': cf.find('PresentationID').text if cf.find('PresentationID') is not None else "",
-                                        'duration': cf.find('Duration').text if cf.find('Duration') is not None else "",
-                                        'logo': cf.find('Logo').text if cf.find('Logo') is not None else "",
-                                        'command': cf.find('Command').text if cf.find('Command') is not None else "",
-                                        'su': cf.find('SU').text if cf.find('SU') is not None else "",
-                                        'ldl_state': cf.find('LDLState').text if cf.find('LDLState') is not None else ""
-                                    }
-                                    event['client_config'][cid] = config
-                            events.append(event)
-                        with self.cache_lock:
-                            self.cached_events = events
-                            self.cached_mtime = current_mtime
-                        logger.debug("Scheduler: Events cache updated.")
-                    except Exception as e:
-                        logger.error(f"Error parsing timetable.xml in cache thread: {e}")
+                if current_mtime != self._cached_mtime:
+                    logger.info("Timetable changed, reloading events...")
+                    self._reload_events()
+                    self._schedule_all_events()
         except Exception as e:
-            logger.error(f"Cache updater thread error: {e}")
-
-    def _run_async_loop(self):
-        try:
-            self.loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self.loop)
-            self.controller.scheduler = self
-            self.controller.init_persistent_connections(self.loop)
-            self.loop.run_until_complete(self.run_scheduler_loop())
-        except Exception as e:
-            logger.error(f"Scheduler Async Loop Crashed: {e}")
-        finally:
-            if self.loop:
-                self.loop.close()
-
-    def grab_all_events(self):
-        with self.cache_lock:
-            return list(self.cached_events) if self.cached_events else []
-
-    def write_event(self, event_data):
+            logger.error(f"Error checking timetable changes: {e}")
+            
+    def _reload_events(self):
         try:
             if not os.path.exists(self.timetable_file):
-                root = ET.Element('timetable')
-                tree = ET.ElementTree(root)
-            else:
-                tree = ET.parse(self.timetable_file)
-                root = tree.getroot()
-
-            event_elem = ET.SubElement(root, 'event')
-            self._populate_event_element(event_elem, event_data)
-
-            self._indent(root)
-            tree.write(self.timetable_file, encoding='UTF-8', xml_declaration=True)
-            self._update_cache()
-            return True
-        except Exception as e:
-            logger.error(f"Error writing event: {e}")
-            return False
-
-    def delete_event(self, display_name):
-        try:
-            if not os.path.exists(self.timetable_file):
-                return False
+                with self._cache_lock:
+                    self._cached_events = []
+                return
                 
+            current_mtime = os.path.getmtime(self.timetable_file)
             tree = ET.parse(self.timetable_file)
             root = tree.getroot()
+            events = []
             
-            event_to_remove = None
-            for event in root.findall('event'):
-                dn = event.find('DisplayName')
-                if dn is not None and dn.text == display_name:
-                    event_to_remove = event
-                    break
-            
-            if event_to_remove is not None:
-                root.remove(event_to_remove)
-                self._indent(root)
-                tree.write(self.timetable_file, encoding='UTF-8', xml_declaration=True)
-                self._update_cache()
-                return True
-            return False
+            for event_elem in root.findall('event'):
+                event = self._parse_event_element(event_elem)
+                events.append(event)
+                
+            with self._cache_lock:
+                self._cached_events = events
+                self._cached_mtime = current_mtime
+                
+            logger.debug(f"Loaded {len(events)} events from timetable")
             
         except Exception as e:
-            logger.error(f"Error deleting event: {e}")
-            return False
-
-    def edit_event(self, old_display_name, new_event_data):
-        try:
-            if not os.path.exists(self.timetable_file):
-                return False
-            tree = ET.parse(self.timetable_file)
-            root = tree.getroot()
-            target_event = None
-            for event in root.findall('event'):
-                dn = event.find('DisplayName')
-                if dn is not None and dn.text == old_display_name:
-                    target_event = event
-                    break
-            if target_event is None:
-                return False
-            for child in list(target_event):
-                target_event.remove(child)
-            self._populate_event_element(target_event, new_event_data)
-            self._indent(root)
-            tree.write(self.timetable_file, encoding='UTF-8', xml_declaration=True)
-            self._update_cache()
-            return True
-
-        except Exception as e:
-            logger.error(f"Error editing event: {e}")
-            return False
-
-    def _populate_event_element(self, event_elem, event_data):
-        for key in ['DisplayName', 'Category', 'TargetID', 'CustomCommand', 'MinuteInterval']:
-            sub = ET.SubElement(event_elem, key)
-            sub.text = str(event_data.get(key, ''))
+            logger.error(f"Error loading timetable: {e}")
+            
+    def _parse_event_element(self, event_elem) -> Dict:
+        event = {}
+        for tag in ['DisplayName', 'CustomCommand', 'MinuteInterval', 'Category', 'TargetID']:
+            el = event_elem.find(tag)
+            event[tag] = el.text if el is not None and el.text else ""
+        for tag, default in [('Enabled', False), ('RunAtStartup', False)]:
+            el = event_elem.find(tag)
+            event[tag] = (el.text.lower() == 'true') if el is not None and el.text else default
+        for tag, child_tag in [
+            ('TenMinuteInterval', 'TenMinute'),
+            ('Days', 'Day'),
+            ('Weeks', 'Week'),
+            ('Months', 'Month'),
+            ('clients', 'client')
+        ]:
+            container = event_elem.find(tag)
+            event[tag if tag != 'clients' else 'clients'] = [
+                e.text for e in container.findall(child_tag) if e.text
+            ] if container is not None else []
+        hours_elem = event_elem.find('Hours')
+        event['Hours'] = []
+        if hours_elem is not None:
+            for h_el in hours_elem.findall('Hour'):
+                event['Hours'].append({
+                    'hour': h_el.text,
+                    'period': h_el.get('period', 'AM/PM')
+                })
+        cc_elem = event_elem.find('ClientConfigs')
+        event['client_config'] = {}
+        if cc_elem is not None:
+            for cf in cc_elem.findall('ClientConfig'):
+                cid = cf.get('id')
+                config = {
+                    'action': cf.find('Action').text if cf.find('Action') is not None else "LoadRun",
+                    'flavor': cf.find('Flavor').text if cf.find('Flavor') is not None else "",
+                    'presentation_id': cf.find('PresentationID').text if cf.find('PresentationID') is not None else "",
+                    'duration': cf.find('Duration').text if cf.find('Duration') is not None else "",
+                    'logo': cf.find('Logo').text if cf.find('Logo') is not None else "",
+                    'command': cf.find('Command').text if cf.find('Command') is not None else "",
+                    'su': cf.find('SU').text if cf.find('SU') is not None else "",
+                    'ldl_state': cf.find('LDLState').text if cf.find('LDLState') is not None else ""
+                }
+                event['client_config'][cid] = config
+        flavors_elem = event_elem.find('flavor')
+        event['flavor'] = {}
+        if flavors_elem is not None:
+            for f_el in flavors_elem.findall('flavor'):
+                client_key = f_el.get('client')
+                if client_key:
+                    event['flavor'][client_key] = f_el.text
+                    
+        return event
         
-        tm = ET.SubElement(event_elem, 'TenMinuteInterval')
-        for val in event_data.get('TenMinuteInterval', []):
-            s = ET.SubElement(tm, 'TenMinute')
-            s.text = str(val)
-
-        h_container = ET.SubElement(event_elem, 'Hours')
-        for h_item in event_data.get('Hours', []):
-            h = ET.SubElement(h_container, 'Hour')
-            h.text = str(h_item.get('hour', ''))
-            h.set('period', h_item.get('period', 'AM/PM'))
-
-        d_container = ET.SubElement(event_elem, 'Days')
-        for d in event_data.get('Days', []):
-            s = ET.SubElement(d_container, 'Day')
-            s.text = str(d)
-
-        w_container = ET.SubElement(event_elem, 'Weeks')
-        for w in event_data.get('Weeks', []):
-            s = ET.SubElement(w_container, 'Week')
-            s.text = str(w)
-
-        m_container = ET.SubElement(event_elem, 'Months')
-        for m in event_data.get('Months', []):
-            s = ET.SubElement(m_container, 'Month')
-            s.text = str(m)
-
-        ras_elem = ET.SubElement(event_elem, 'RunAtStartup')
-        ras_elem.text = str(event_data.get('RunAtStartup', False))
-
-        en_elem = ET.SubElement(event_elem, 'Enabled')
-        en_elem.text = str(event_data.get('Enabled', True))
-
-        cc_container = ET.SubElement(event_elem, 'ClientConfigs')
-        c_configs = event_data.get('client_config', {})
-        for cid, config in c_configs.items():
-            cc = ET.SubElement(cc_container, 'ClientConfig')
-            cc.set('id', cid)
+    def _schedule_all_events(self):
+        if not self._scheduler:
+            return
+        for job_ids in self._event_jobs.values():
+            for job_id in job_ids:
+                try:
+                    self._scheduler.remove_job(job_id)
+                except Exception:
+                    pass
+        self._event_jobs.clear()
+        
+        events = self.grab_all_events()
+        scheduled_count = 0
+        
+        for event in events:
+            if not event.get('Enabled', False):
+                continue
+                
+            display_name = event.get('DisplayName', 'Unnamed')
+            job_ids = self._schedule_event(event)
             
-            act = ET.SubElement(cc, 'Action')
-            act.text = str(config.get('action', 'LoadRun'))
+            if job_ids:
+                self._event_jobs[display_name] = job_ids
+                scheduled_count += len(job_ids)
+                
+        logger.info(f"Scheduled {scheduled_count} jobs for {len(self._event_jobs)} events")
+        self._update_next_event()
+        
+    def _schedule_event(self, event: Dict) -> List[str]:
+        display_name = event.get('DisplayName', 'Unknown')
+        job_ids = []
+        cron_kwargs = self._build_cron_kwargs(event)
+        if not cron_kwargs:
+            return []
 
-            fl = ET.SubElement(cc, 'Flavor')
-            fl.text = str(config.get('flavor', ''))
+        prepare_job_id = f"event_{display_name}_prepare"
+        try:
+            self._scheduler.add_job(
+                self._trigger_event_wrapper,
+                CronTrigger(second=self.TRIGGER_OFFSETS['prepare'], **cron_kwargs),
+                id=prepare_job_id,
+                args=[event, 'prepare'],
+                replace_existing=True,
+                name=f"{display_name} (prepare)"
+            )
+            job_ids.append(prepare_job_id)
+        except Exception as e:
+            logger.error(f"Failed to schedule prepare job for {display_name}: {e}")
+
+        execute_job_id = f"event_{display_name}_execute"
+        try:
+            self._scheduler.add_job(
+                self._trigger_event_wrapper,
+                CronTrigger(second=self.TRIGGER_OFFSETS['execute'], **cron_kwargs),
+                id=execute_job_id,
+                args=[event, 'execute'],
+                replace_existing=True,
+                name=f"{display_name} (execute)"
+            )
+            job_ids.append(execute_job_id)
+        except Exception as e:
+            logger.error(f"Failed to schedule execute job for {display_name}: {e}")
             
-            pid = ET.SubElement(cc, 'PresentationID')
-            pid.text = str(config.get('presentation_id', ''))
-            
-            dur = ET.SubElement(cc, 'Duration')
-            dur.text = str(config.get('duration', ''))
-
-            logo = ET.SubElement(cc, 'Logo')
-            logo.text = str(config.get('logo', ''))
-            
-            cmd = ET.SubElement(cc, 'Command')
-            cmd.text = str(config.get('command', ''))
-
-            su = ET.SubElement(cc, 'SU')
-            su.text = str(config.get('su', ''))
-
-            ldl = ET.SubElement(cc, 'LDLState')
-            ldl.text = str(config.get('ldl_state', ''))
-
-        c_container = ET.SubElement(event_elem, 'clients')
-        for c in event_data.get('clients', []):
-            s = ET.SubElement(c_container, 'client')
-            s.text = str(c)
-
-        f_container = ET.SubElement(event_elem, 'flavor')
-        flavors = event_data.get('flavor', {})
-        for client_id, flav_val in flavors.items():
-            s = ET.SubElement(f_container, 'flavor')
-            s.text = flav_val
-            s.set('client', client_id)
-
-    def _indent(self, elem, level=0):
-        i = "\n" + level*"    "
-        if len(elem):
-            if not elem.text or not elem.text.strip():
-                elem.text = i + "    "
-            if not elem.tail or not elem.tail.strip():
-                elem.tail = i
-            for elem in elem:
-                self._indent(elem, level+1)
-            if not elem.tail or not elem.tail.strip():
-                elem.tail = i
-        else:
-            if level and (not elem.tail or not elem.tail.strip()):
-                elem.tail = i
-    
-    def does_event_match_time(self, event, target_time):
-        if not event.get('Enabled', False):
-            return False
-
-        event_days = event.get('Days', [])
-        if event_days and target_time.strftime("%A") not in event_days:
-            return False
-
-        event_months = event.get('Months', [])
-        if event_months and str(target_time.month) not in event_months:
-            return False
-
-        event_weeks = event.get('Weeks', [])
-        if event_weeks:
-            week_num = (target_time.day - 1) // 7 + 1
-            if str(week_num) not in event_weeks:
-                return False
-        event_hours = event.get('Hours', [])
-        if event_hours:
-            match_hour = False
-            for h_rule in event_hours:
+        return job_ids
+        
+    def _build_cron_kwargs(self, event: Dict) -> Optional[Dict]:
+        hours = set()
+        for h_rule in event.get('Hours', []):
+            try:
                 rule_h = int(h_rule.get('hour', 0))
                 rule_p = h_rule.get('period', 'AM')
-                if rule_p == 'PM' and rule_h != 12:
-                    rule_h += 12
-                elif rule_p == 'AM' and rule_h == 12:
-                    rule_h = 0
                 
-                if rule_h == target_time.hour:
-                    match_hour = True
-                    break
-            if not match_hour:
-                return False
-
+                if rule_p == 'AM/PM':
+                    hours.add(rule_h % 12)
+                    hours.add((rule_h % 12) + 12 if rule_h != 12 else 12)
+                elif rule_p == 'PM' and rule_h != 12:
+                    hours.add(rule_h + 12)
+                elif rule_p == 'AM' and rule_h == 12:
+                    hours.add(0)
+                else:
+                    hours.add(rule_h)
+            except ValueError:
+                continue
+                
+        if not hours:
+            hours = set(range(24))
         tm_vals = event.get('TenMinuteInterval', [])
         m_val_str = str(event.get('MinuteInterval', '')).strip()
         m_val = int(m_val_str) if m_val_str and m_val_str.isdigit() else 0
-        bases = [int(x) for x in tm_vals] if tm_vals else [0]
-        allowed_minutes = [(b + m_val) % 60 for b in bases]
-        if target_time.minute not in allowed_minutes:
-            return False
-        return True
-
-    def calculate_next_event(self):
-        all_events = self.grab_all_events()
-        if not all_events:
-            self.next_event_name = "None"
-            self.next_event_time = "N/A"
-            self.next_event_dt = None
-            return
-
-        now = datetime.now()
-        found = None
-        found_dt = None
-        candidates = []
         
-        for event in all_events:
-            if not event.get('Enabled', False): continue
-            dt = now.replace(second=0, microsecond=0) + timedelta(minutes=1)
-            limit = dt + timedelta(hours=24)
-            pass
-
-    async def run_scheduler_loop(self):
-        wait_start = datetime.now()
-        while self.cached_mtime == 0 and self.running:
-            if (datetime.now() - wait_start).total_seconds() > 5:
-                logger.warning("Cache not loaded after 5s, forcing update")
-                self._update_cache()
-                break
-            await asyncio.sleep(0.1)
-        
-        logger.info("Scheduler loop started")
-        last_fired_minute = -1
-        fired_triggers = set()
-        
-        TRIGGER_SECONDS = [50, 58]
-        REALIGN_INTERVAL = 30
-        last_realign_second = -1
-        
-        if not self.startup_event_fired:
-            all_events = self.grab_all_events()
-            if all_events:
-                startup_tasks = []
-                for event in all_events:
-                    if event.get('RunAtStartup', False) and event.get('Enabled', True):
-                        logger.info(f"Queuing Startup Event: {event.get('DisplayName')}")
-                        startup_tasks.append(asyncio.create_task(self._execute_single_event(event)))
-                if startup_tasks:
-                    await asyncio.gather(*startup_tasks, return_exceptions=True)
-            self.startup_event_fired = True
-
-        while self.running:
-            try:
-                now = datetime.now()
-                current_second = now.second
-                current_ms = now.microsecond // 1000
-                current_hour = now.hour
-                current_minute = now.minute
-                minute_key = (current_hour, current_minute)
-                realign_boundary = (current_second // REALIGN_INTERVAL) * REALIGN_INTERVAL
-                if realign_boundary != last_realign_second:
-                    last_realign_second = realign_boundary
-                    if current_ms < 100:
-                        logger.debug(f"Wall-clock realign at :{current_second:02d}.{current_ms:03d}")
-                if current_minute != last_fired_minute:
-                    fired_triggers.clear()
-                    last_fired_minute = current_minute
-                if current_second % 5 == 0 and current_ms < 100:
-                    self._update_prediction(now)
-                    
-                if self.next_event_dt:
-                    diff = self.next_event_dt - now
-                    if diff.total_seconds() > 0:
-                        self.next_event_countdown = str(diff).split('.')[0]
-                    else:
-                        self.next_event_countdown = "00:00:00"
-                        
-                next_minute = now + timedelta(minutes=1)
-                target_event_time = next_minute.replace(second=0, microsecond=0)
-                self.next_check_time = target_event_time.strftime("%I:%M %p")
-
-                for trigger_sec in TRIGGER_SECONDS:
-                    trigger_key = (minute_key, trigger_sec)
-
-                    if current_second >= trigger_sec and current_second < trigger_sec + 5:
-                        if trigger_key not in fired_triggers:
-                            fired_triggers.add(trigger_key)
-
-                            ms_late = (current_second - trigger_sec) * 1000 + current_ms
-                            if ms_late > 500:
-                                logger.warning(f"Trigger sec={trigger_sec} is {ms_late}ms late (fired at :{current_second}.{current_ms:03d})")
-                            
-                            is_48_trigger = (trigger_sec == 48 or trigger_sec == 50)
-                            is_58_trigger = (trigger_sec == 58)
-                            
-                            all_events = self.grab_all_events()
-                            matching_events = []
-                            for event in all_events:
-                                if self.does_event_match_time(event, target_event_time):
-                                    matching_events.append(event)
-                            
-                            if matching_events:
-                                t_ctx = {
-                                    'trigger_i2_loadrun': is_48_trigger,
-                                    'trigger_load_i1': is_48_trigger,
-                                    'trigger_run_i1': is_58_trigger,
-                                    'target_time': target_event_time
-                                }
-                                for ev in matching_events:
-                                    logger.info(f"Firing trigger sec={trigger_sec} for: {ev.get('DisplayName')} at {now.strftime('%H:%M:%S.%f')[:-3]}")
-                                    asyncio.create_task(self._execute_single_event(ev, t_ctx))
-                
-                now_after = datetime.now()
-                us = now_after.microsecond
-                boundary = 25000
-                next_boundary = ((us // boundary) + 1) * boundary
-                if next_boundary >= 1000000:
-                    sleep_us = 1000000 - us
+        bases = [int(x) for x in tm_vals if x.isdigit()] if tm_vals else [0]
+        minutes = set((b + m_val) % 60 for b in bases)
+        adjusted_minutes = set((m - 1) % 60 for m in minutes)
+        adjusted_hours = set()
+        for m in minutes:
+            adj_m = (m - 1) % 60
+            for h in hours:
+                if m == 0:
+                    adjusted_hours.add((h - 1) % 24)
                 else:
-                    sleep_us = next_boundary - us
-                sleep_sec = sleep_us / 1000000.0
-                sleep_sec = max(0.005, min(sleep_sec, 0.030))
-                await asyncio.sleep(sleep_sec)
-                
-            except Exception as e:
-                logger.error(f"Scheduler Loop Error: {e}")
-                await asyncio.sleep(0.025)
-
-    def _update_prediction(self, now):
+                    adjusted_hours.add(h)
+                    
+        if not adjusted_hours:
+            adjusted_hours = hours
+            
+        day_map = {
+            'Sunday': 'sun', 'Monday': 'mon', 'Tuesday': 'tue',
+            'Wednesday': 'wed', 'Thursday': 'thu', 'Friday': 'fri', 'Saturday': 'sat'
+        }
+        days = event.get('Days', [])
+        day_of_week = ','.join(day_map.get(d, d.lower()[:3]) for d in days) if days else '*'
+        months = event.get('Months', [])
+        month_str = ','.join(months) if months else '*'
+        weeks = event.get('Weeks', [])
+        
+        return {
+            'hour': ','.join(str(h) for h in sorted(adjusted_hours)),
+            'minute': ','.join(str(m) for m in sorted(adjusted_minutes)),
+            'day_of_week': day_of_week,
+            'month': month_str,
+        }
+        
+    def _trigger_event_wrapper(self, event: Dict, phase: str):
         try:
-            all_events = self.grab_all_events()
-            if not all_events:
-                self.next_event_name = "None"
-                self.next_event_time = "N/A"
-                self.next_event_dt = None
-                return
-
-            start_dt = now.replace(second=0, microsecond=0) + timedelta(minutes=1)
+            now = datetime.now()
+            target_time = (now + timedelta(minutes=1)).replace(second=0, microsecond=0)
+            weeks = event.get('Weeks', [])
+            if weeks:
+                week_num = (target_time.day - 1) // 7 + 1
+                if str(week_num) not in weeks:
+                    return
+                    
+            triggers = {
+                'trigger_i2_loadrun': phase == 'prepare',
+                'trigger_load_i1': phase == 'prepare',
+                'trigger_run_i1': phase == 'execute',
+                'target_time': target_time
+            }
             
-            min_match = None
-            matched_events_names = []
-            
-            found = False
-            scan_time = start_dt
-            for _ in range(60 * 24):
-                matches = []
-                for event in all_events:
-                    if self.does_event_match_time(event, scan_time):
-                        matches.append(event.get('DisplayName', 'Unnamed'))
-                
-                if matches:
-                    min_match = scan_time
-                    matched_events_names = matches
-                    found = True
-                    break
-                scan_time += timedelta(minutes=1)
-                
-            if found:
-                self.next_event_dt = min_match
-                self.next_event_time = min_match.strftime("%a %I:%M %p")
-                self.next_event_name = ", ".join(matched_events_names)
+            logger.info(f"Triggering event '{event.get('DisplayName')}' phase={phase} at {now.strftime('%H:%M:%S.%f')[:-3]}")
+            if self._loop and self._loop.is_running():
+                asyncio.run_coroutine_threadsafe(
+                    self._execute_event(event, triggers),
+                    self._loop
+                )
             else:
-                self.next_event_name = "None (in 24h)"
-                self.next_event_time = "N/A"
-                self.next_event_dt = None
+                logger.warning("Event loop not running, cannot execute event")
+            
         except Exception as e:
-            logger.error(f"Prediction error: {e}")
-
-    async def _execute_single_event(self, event, triggers=None):
-        """Execute an event using action cards (like QuickTimeEventTab)."""
+            logger.error(f"Error in trigger wrapper: {e}")
+            
+    async def _execute_event(self, event: Dict, triggers: Optional[Dict] = None, is_startup: bool = False):
         try:
             self.last_event_name = event.get('DisplayName', 'Unknown')
             now = datetime.now()
             self.last_event_time = now.strftime("%I:%M:%S %p")
-            
-            logger.debug(f"Executing event: {self.last_event_name}")
-
             if triggers and 'target_time' in triggers:
                 target = triggers['target_time']
                 diff = (now - target).total_seconds()
                 self.last_event_offset = diff
                 if abs(diff) > 6:
-                    logger.warning(f"Event '{self.last_event_name}' executed with offset of {diff} seconds from scheduled time.")
-                    import random
-                    if random.randint(1,4) == 3:
-                        logger.warning("when im in a time drift competition and my opponent is renderd")
+                    logger.warning(f"Event '{self.last_event_name}' offset: {diff:.2f}s from scheduled time")
             else:
                 self.last_event_offset = 0.0
             client_configs = event.get('client_config', {})
@@ -4168,86 +3979,32 @@ class scheduler:
                         'presentation_id': global_pid,
                         'duration': '60'
                     }
-            
+                    
             if not client_configs:
                 logger.warning(f"No client configs for event {self.last_event_name}")
                 return
-            
+                
             clients = self.controller.get_configured_clients()
             if not clients:
-                logger.warning("No configured clients found to dispatch event to.")
+                logger.warning("No configured clients to dispatch event to")
                 return
-            is_manual = (triggers is None)
-            
+            is_manual = (triggers is None and not is_startup)
             tasks = []
             for client in clients:
                 cid = client.get('id') or client.get('star')
                 conf = client_configs.get(cid) or client_configs.get(client.get('star'))
                 if not conf:
                     continue
+                    
+                tasks.append(self._dispatch_client_action(client, conf, event, triggers, is_manual))
                 
-                task = asyncio.create_task(
-                    self._dispatch_client_action(client, conf, event, triggers, is_manual)
-                )
-                tasks.append(task)
-            
             if tasks:
                 await asyncio.gather(*tasks, return_exceptions=True)
                 
         except Exception as e:
-            logger.error(f"Error in _execute_single_event: {e}")
-
-    def _log_execution_result(self, client_id, res, command_info=None):
-        """Log execution results to client logs. Always logs regardless of config."""
-        output = ""
-
-        if not command_info:
-            stats = self.controller.stats
-            command_info = stats.get('ssh_last') or stats.get('telnet_last') or stats.get('sub_last') or stats.get('udp_last') or ""
-
-        if command_info:
-            output += f"[COMMAND] {command_info}\n"
-        
-        if not res or not isinstance(res, tuple) or len(res) != 2:
-            if output:
-                self.controller.client_manager.log_output(client_id, output)
-            return
-        
-        stdout, stderr = res
-        
-        runtime_error_strings = [
-            "Neither a playlist nor a copy split was generated.",
-            "Exception:",
-            "Error:"
-        ]
-        i2service_dies_lmao = "Could not connect to net.tcp://localhost:8082/ExecutionerWCFService/"
-        STUPID_FUCKING_DUMBASS_SHITTY_AHH_ISTAR1_CORBA_ERROR_THAT_DOESNT_MEAN_SHIT = [
-            "'NoneType' object is not callable",
-            "twccommon.corba.CosEventChannelAdmin._objref_ProxyPushConsumer instance at 0x852d48c>> ignored"
-        ]
-
-        if (any(err_str in stdout for err_str in runtime_error_strings) or any(err_str in stderr for err_str in runtime_error_strings)) and client_id.startswith("i2"):
-             logger.warning(f"I2Service or Viz runtime error detected in output for client {client_id}")
-             output += f"\x1b[1;31m{stdout}\x1b[0m"
-        elif (i2service_dies_lmao in stdout or i2service_dies_lmao in stderr) and client_id.startswith("i2"):
-             logger.warning(f"I2Service connection error detected for client {client_id}. Please verify that the service is running on the target output client.")
-             output += f"\x1b[1;33m{stdout}\x1b[0m"
-        elif client_id.startswith("i1") and any(err_str in stdout for err_str in STUPID_FUCKING_DUMBASS_SHITTY_AHH_ISTAR1_CORBA_ERROR_THAT_DOESNT_MEAN_SHIT):
-             pass
-        else:
-             if stdout.strip():
-                 output += f"[STDOUT]\n{stdout}\n"
-                 if self.controller.config['system'].get("logSTDOUT", True):
-                     logger.info(f"[{client_id}] STDOUT: {stdout.strip()}")
-        if stderr.strip(): 
-             output += f"[STDERR]\n{stderr}\n"
-             logger.warning(f"[{client_id}] STDERR: {stderr.strip()}")
-
-        if output:
-            self.controller.client_manager.log_output(client_id, output)
-
-    async def _dispatch_client_action(self, client, conf, event, triggers, is_manual):
-        """Execute action for a single client based on action card config (like QuickTimeEventTab)."""
+            logger.error(f"Error executing event: {e}")
+            
+    async def _dispatch_client_action(self, client: Dict, conf: Dict, event: Dict, triggers: Optional[Dict], is_manual: bool):
         cid = client.get('id') or client.get('star')
         creds = client.get('credentials', {})
         hostname = creds.get('hostname')
@@ -4267,7 +4024,6 @@ class scheduler:
         su = creds.get('su', 'dgadmin') if is_i1 else creds.get('su', None)
         registry = provision.get_connection_registry()
         use_persistent = registry.get_session(cid) is not None
-        
         if triggers and not is_manual:
             trigger_i2_loadrun = triggers.get('trigger_i2_loadrun', False)
             trigger_load_i1 = triggers.get('trigger_load_i1', False)
@@ -4284,268 +4040,497 @@ class scheduler:
             else:
                 if action in ("LoadRun", "Load", "Run") and not trigger_i2_loadrun:
                     return
-        
-        logger.info(f"Dispatching action '{action}' to client {cid}...")
+                    
+        logger.info(f"Dispatching action '{action}' to client {cid}")
         
         try:
             if action == "Custom Command":
                 if not cmd:
                     return
-                cmd_info = f"{protocol.upper()} Custom: {cmd[:50]}..." if len(cmd) > 50 else f"{protocol.upper()} Custom: {cmd}"
-                res = None
-                if protocol == 'ssh':
-                    if use_persistent:
-                        res = await provision.execute_ssh_persistent(cid, cmd, timeout=10.0, use_shell=bool(su))
-                    else:
-                        res = await provision.execute_ssh_command(
-                            hostname=hostname, user=user, password=password, port=port,
-                            command=cmd, su=su
-                        )
-                elif protocol == 'telnet':
-                    telnet_port = int(port) if port else 23
-                    if use_persistent:
-                        res = await provision.execute_telnet_persistent(cid, cmd, timeout=10.0)
-                    else:
-                        res = await provision.execute_telnet_command(
-                            hostname=hostname, port=telnet_port, command=cmd
-                        )
-                elif protocol == 'udp':
-                    udp_port = int(port) if port else 7787
-                    await provision.execute_udp_message(hostname=hostname, port=udp_port, message=cmd)
-                self._log_execution_result(cid, res, cmd_info)
-                return
-            if action == "Cancel":
+                res = await self._execute_command(protocol, cid, hostname, user, password, 
+                                                   port, cmd, su, use_persistent)
+                self._log_result(cid, res, f"{protocol.upper()} Custom: {cmd[:50]}")
+                
+            elif action == "Cancel":
                 final_id = pres_id if pres_id else ('local' if is_i1 else '1')
-                cmd_info = f"{protocol.upper()} Cancel pres_id={final_id}"
-                res = None
-                if protocol == 'ssh':
-                    if star_type.startswith('i2'):
-                        cancel_cmd = f'"{provision.i2exec}" cancelPres(PresentationId="{final_id}")'
-                        if use_persistent:
-                            res = await provision.execute_ssh_persistent(cid, cancel_cmd, timeout=10.0, use_shell=bool(su))
-                        else:
-                            res = await provision.execute_ssh_command(
-                                hostname=hostname, user=user, password=password, port=port,
-                                command=cancel_cmd, su=su
-                            )
-                elif protocol == 'telnet':
-                    telnet_port = int(port) if port else 23
-                    if star_type.startswith('i2'):
-                        if use_persistent:
-                            res = await provision.execute_telnet_persistent(cid, f'cancelPres(PresentationId="{final_id}")', timeout=10.0)
-                        else:
-                            res = await provision.telnet_cancel_i2_pres(
-                                hostname=hostname, port=telnet_port,
-                                PresentationId=final_id, user=user, password=password
-                            )
-                elif protocol == 'udp':
-                    udp_port = int(port) if port else 7787
-                    if star_type.startswith('i2'):
-                        await provision.execute_udp_cancel_i2_pres(
-                            hostname=hostname, port=udp_port, PresentationId=final_id
-                        )
+                if protocol == 'ssh' and star_type.startswith('i2'):
+                    cancel_cmd = f'"{provision.i2exec}" cancelPres(PresentationId="{final_id}")'
+                    res = await self._execute_command(protocol, cid, hostname, user, password,
+                                                       port, cancel_cmd, su, use_persistent)
+                    self._log_result(cid, res, f"{protocol.upper()} Cancel pres_id={final_id}")
                 elif protocol == 'subprocess':
                     res = await provision.subproc_cancel_i2_pres(PresentationId=final_id)
-                self._log_execution_result(cid, res, cmd_info)
-                return
-            if is_i1 and action == "LDL (On/Off)":
+                    self._log_result(cid, res, f"Subprocess Cancel pres_id={final_id}")
+                    
+            elif is_i1 and action == "LDL (On/Off)":
                 target_state = int(ldl_state) if str(ldl_state).isdigit() else 1
-                cmd_info = f"{protocol.upper()} i1 LDL Toggle state={target_state}"
-                res = None
+                ldl_cmd = f'runomni /twc/util/toggleNationalLDL.pyc {target_state}'
+                res = await self._execute_command(protocol, cid, hostname, user, password,
+                                                   port, ldl_cmd, su, use_persistent)
+                self._log_result(cid, res, f"{protocol.upper()} i1 LDL state={target_state}")
+                
+            elif action in ("LoadRun", "Load", "Run"):
+                await self._execute_presentation_action(
+                    client, conf, event, action, flavor, pres_id, duration,
+                    is_i1, su, use_persistent
+                )
+                
+        except Exception as e:
+            logger.error(f"Error dispatching to {cid}: {e}")
+            
+    async def _execute_command(self, protocol: str, cid: str, hostname: str, 
+                                user: str, password: str, port: int, 
+                                cmd: str, su: str, use_persistent: bool):
+        if protocol == 'ssh':
+            if use_persistent:
+                return await provision.execute_ssh_persistent(cid, cmd, timeout=10.0, use_shell=bool(su))
+            else:
+                return await provision.execute_ssh_command(
+                    hostname=hostname, user=user, password=password, port=port,
+                    command=cmd, su=su
+                )
+        elif protocol == 'telnet':
+            telnet_port = int(port) if port else 23
+            if use_persistent:
+                return await provision.execute_telnet_persistent(cid, cmd, timeout=10.0)
+            else:
+                return await provision.execute_telnet_command(
+                    hostname=hostname, port=telnet_port, command=cmd
+                )
+        elif protocol == 'udp':
+            udp_port = int(port) if port else 7787
+            await provision.execute_udp_message(hostname=hostname, port=udp_port, message=cmd)
+            return ("", "")
+        return None
+        
+    async def _execute_presentation_action(self, client, conf, event, action, flavor,
+                                            pres_id, duration, is_i1, su, use_persistent):
+        cid = client.get('id') or client.get('star')
+        creds = client.get('credentials', {})
+        hostname = creds.get('hostname')
+        user = creds.get('user')
+        password = creds.get('password')
+        port = creds.get('port', 22)
+        protocol = client.get('protocol', 'ssh')
+        star_type = client.get('star', 'unknown')
+        
+        final_id = pres_id if pres_id else ('local' if is_i1 else '1')
+        
+        if is_i1:
+            if action == "LoadRun":
                 if protocol == 'ssh':
                     if use_persistent:
-                        ldl_cmd = f'runomni /twc/util/toggleNationalLDL.pyc {target_state}'
-                        res = await provision.execute_ssh_persistent(cid, ldl_cmd, timeout=10.0, use_shell=True)
+                        load_cmd = f'runomni /twc/util/load.pyc {final_id} {flavor.capitalize()}'
+                        run_cmd = f'runomni /twc/util/run.pyc {final_id}'
+                        res1 = await provision.execute_ssh_persistent(cid, load_cmd, timeout=10.0, use_shell=True)
+                        self._log_result(cid, res1, f"i1 Load {flavor}")
+                        await asyncio.sleep(2)
+                        res = await provision.execute_ssh_persistent(cid, run_cmd, timeout=10.0, use_shell=True)
+                        self._log_result(cid, res, f"i1 Run {final_id}")
                     else:
-                        res = await provision.ssh_toggleldl_i1(
+                        res = await provision.ssh_loadrun_i1_pres(
                             hostname=hostname, user=user, password=password, port=port,
-                            state=target_state, su=su
+                            flavor=flavor, PresentationId=final_id, su=su
                         )
+                        self._log_result(cid, res, f"i1 LoadRun {flavor}")
                 elif protocol == 'telnet':
-                    telnet_port = int(port) if port else 23
+                    res = await provision.telnet_loadrun_i1_pres(
+                        hostname=hostname, port=port,
+                        flavor=flavor, PresentationId=final_id, su=su,
+                        user=user, password=password
+                    )
+                    self._log_result(cid, res, f"i1 Telnet LoadRun {flavor}")
+            elif action == "Load":
+                if protocol == 'ssh':
                     if use_persistent:
-                        ldl_cmd = f'runomni /twc/util/toggleNationalLDL.pyc {target_state}'
-                        res = await provision.execute_telnet_persistent(cid, ldl_cmd, timeout=10.0)
+                        load_cmd = f'runomni /twc/util/load.pyc {final_id} {flavor.capitalize()}'
+                        res = await provision.execute_ssh_persistent(cid, load_cmd, timeout=10.0, use_shell=True)
                     else:
-                        res = await provision.telnet_toggleldl_i1(
-                            hostname=hostname, port=telnet_port,
-                            state=target_state, su=su, user=user, password=password
+                        res = await provision.ssh_load_i1_pres(
+                            hostname=hostname, user=user, password=password, port=port,
+                            flavor=flavor, PresentationId=final_id, su=su
                         )
-                self._log_execution_result(cid, res, cmd_info)
-                return
-            final_id = pres_id if pres_id else ('local' if is_i1 else '1')
-            i_type = "i1" if is_i1 else "i2"
-            cmd_info = f"{protocol.upper()} {i_type} {action} pres={final_id}"
-            res = None
+                    self._log_result(cid, res, f"i1 Load {flavor}")
+                elif protocol == 'telnet':
+                    res = await provision.telnet_load_i1_pres(
+                        hostname=hostname, port=port,
+                        flavor=flavor, PresentationId=final_id, su=su,
+                        user=user, password=password
+                    )
+                    self._log_result(cid, res, f"i1 Telnet Load {flavor}")
+            elif action == "Run":
+                if protocol == 'ssh':
+                    if use_persistent:
+                        run_cmd = f'runomni /twc/util/run.pyc {final_id}'
+                        res = await provision.execute_ssh_persistent(cid, run_cmd, timeout=10.0, use_shell=True)
+                    else:
+                        res = await provision.ssh_run_i1_pres(
+                            hostname=hostname, user=user, password=password, port=port,
+                            PresentationId=final_id, su=su
+                        )
+                    self._log_result(cid, res, f"i1 Run {final_id}")
+                elif protocol == 'telnet':
+                    res = await provision.telnet_run_i1_pres(
+                        hostname=hostname, port=port,
+                        PresentationId=final_id, su=su,
+                        user=user, password=password
+                    )
+                    self._log_result(cid, res, f"i1 Telnet Run {final_id}")
+        else:
+            if action == "LoadRun":
+                if protocol == 'ssh':
+                    if use_persistent:
+                        i2_cmd = f'"{provision.i2exec}" loadRunPres(Flavor="{flavor}",Duration={duration},PresentationId="{final_id}")'
+                        res = await provision.execute_ssh_persistent(cid, i2_cmd, timeout=10.0, use_shell=False)
+                    else:
+                        res = await provision.ssh_loadrun_i2_pres(
+                            hostname=hostname, user=user, password=password, port=port,
+                            flavor=flavor, PresentationId=final_id, duration=duration, su=su
+                        )
+                    self._log_result(cid, res, f"i2 LoadRun flavor={flavor} pres={final_id} dur={duration}")
+                elif protocol == 'subprocess':
+                    res = await provision.subproc_loadrun_i2_pres(
+                        flavor=flavor, PresentationId=final_id, duration=duration
+                    )
+                    self._log_result(cid, res, f"i2 Subprocess LoadRun flavor={flavor} pres={final_id}")
+                elif protocol == 'telnet':
+                    res = await provision.telnet_loadrun_i2_pres(
+                        hostname=hostname, port=port,
+                        flavor=flavor, PresentationId=final_id, duration=duration,
+                        user=user, password=password
+                    )
+                    self._log_result(cid, res, f"i2 Telnet LoadRun flavor={flavor} pres={final_id}")
+                elif protocol == 'udp':
+                    udp_port = port if port else 7787
+                    await provision.udp_loadrun_i2_pres(
+                        hostname=hostname, port=udp_port,
+                        flavor=flavor, PresentationId=final_id, duration=duration
+                    )
+                    self._log_result(cid, None, f"i2 UDP LoadRun flavor={flavor} pres={final_id}")
+            elif action == "Load":
+                if protocol == 'ssh':
+                    if use_persistent:
+                        i2_cmd = f'"{provision.i2exec}" loadPres(Flavor="{flavor}",Duration={duration},PresentationId="{final_id}")'
+                        res = await provision.execute_ssh_persistent(cid, i2_cmd, timeout=10.0, use_shell=False)
+                    else:
+                        res = await provision.ssh_load_i2_pres(
+                            hostname=hostname, user=user, password=password, port=port,
+                            flavor=flavor, PresentationId=final_id, duration=duration, su=su
+                        )
+                    self._log_result(cid, res, f"i2 Load flavor={flavor} pres={final_id}")
+                elif protocol == 'subprocess':
+                    res = await provision.subproc_load_i2_pres(
+                        flavor=flavor, PresentationId=final_id, duration=duration
+                    )
+                    self._log_result(cid, res, f"i2 Subprocess Load flavor={flavor} pres={final_id}")
+                elif protocol == 'telnet':
+                    res = await provision.telnet_load_i2_pres(
+                        hostname=hostname, port=port,
+                        flavor=flavor, PresentationId=final_id, duration=duration,
+                        user=user, password=password
+                    )
+                    self._log_result(cid, res, f"i2 Telnet Load flavor={flavor} pres={final_id}")
+                elif protocol == 'udp':
+                    udp_port = port if port else 7787
+                    await provision.udp_load_i2_pres(
+                        hostname=hostname, port=udp_port,
+                        flavor=flavor, PresentationId=final_id, duration=duration
+                    )
+                    self._log_result(cid, None, f"i2 UDP Load flavor={flavor} pres={final_id}")
+            elif action == "Run":
+                if protocol == 'ssh':
+                    if use_persistent:
+                        i2_cmd = f'"{provision.i2exec}" runPres(PresentationId="{final_id}")'
+                        res = await provision.execute_ssh_persistent(cid, i2_cmd, timeout=10.0, use_shell=False)
+                    else:
+                        res = await provision.ssh_run_i2_pres(
+                            hostname=hostname, user=user, password=password, port=port,
+                            PresentationId=final_id, su=su
+                        )
+                    self._log_result(cid, res, f"i2 Run pres={final_id}")
+                elif protocol == 'subprocess':
+                    res = await provision.subproc_run_i2_pres(PresentationId=final_id)
+                    self._log_result(cid, res, f"i2 Subprocess Run pres={final_id}")
+                elif protocol == 'telnet':
+                    res = await provision.telnet_run_i2_pres(
+                        hostname=hostname, port=port,
+                        PresentationId=final_id,
+                        user=user, password=password
+                    )
+                    self._log_result(cid, res, f"i2 Telnet Run pres={final_id}")
+                elif protocol == 'udp':
+                    udp_port = port if port else 7787
+                    await provision.udp_run_i2_pres(
+                        hostname=hostname, port=udp_port,
+                        PresentationId=final_id
+                    )
+                    self._log_result(cid, None, f"i2 UDP Run pres={final_id}")
+                
+    def _log_result(self, client_id: str, res, command_info: str):
+        if hasattr(self.controller, 'client_manager'):
+            output = f"[COMMAND] {command_info}\n"
+            if res and isinstance(res, tuple) and len(res) == 2:
+                stdout, stderr = res
+                if stdout.strip():
+                    output += f"[STDOUT]\n{stdout}\n"
+                if stderr.strip():
+                    output += f"[STDERR]\n{stderr}\n"
+            self.controller.client_manager.log_output(client_id, output)
             
-            if is_i1:
-                if action == "LoadRun":
-                    if protocol == 'ssh':
-                        if use_persistent:
-                            load_cmd = f'runomni /twc/util/load.pyc {final_id} {flavor.capitalize()}'
-                            run_cmd = f'runomni /twc/util/run.pyc {final_id}'
-                            res1 = await provision.execute_ssh_persistent(cid, load_cmd, timeout=10.0, use_shell=True)
-                            self._log_execution_result(cid, res1, f"i1 Load {flavor}")
-                            await asyncio.sleep(2)
-                            res = await provision.execute_ssh_persistent(cid, run_cmd, timeout=10.0, use_shell=True)
-                        else:
-                            res = await provision.ssh_loadrun_i1_pres(
-                                hostname=hostname, user=user, password=password, port=port,
-                                flavor=flavor, PresentationId=final_id, su=su
-                            )
-                    elif protocol == 'telnet':
-                        telnet_port = int(port) if port else 23
-                        if use_persistent:
-                            load_cmd = f'runomni /twc/util/load.pyc {final_id} {flavor.capitalize()}'
-                            run_cmd = f'runomni /twc/util/run.pyc {final_id}'
-                            res1 = await provision.execute_telnet_persistent(cid, load_cmd, timeout=10.0)
-                            self._log_execution_result(cid, res1, f"i1 Load {flavor}")
-                            await asyncio.sleep(2)
-                            res = await provision.execute_telnet_persistent(cid, run_cmd, timeout=10.0)
-                        else:
-                            res = await provision.telnet_loadrun_i1_pres(
-                                hostname=hostname, port=telnet_port,
-                                flavor=flavor, PresentationId=final_id,
-                                user=user, password=password, su=su
-                            )
-                elif action == "Load":
-                    if protocol == 'ssh':
-                        if use_persistent:
-                            load_cmd = f'runomni /twc/util/load.pyc {final_id} {flavor.capitalize()}'
-                            res = await provision.execute_ssh_persistent(cid, load_cmd, timeout=10.0, use_shell=True)
-                        else:
-                            res = await provision.ssh_load_i1_pres(
-                                hostname=hostname, user=user, password=password, port=port,
-                                flavor=flavor, PresentationId=final_id, su=su
-                            )
-                    elif protocol == 'telnet':
-                        telnet_port = int(port) if port else 23
-                        if use_persistent:
-                            load_cmd = f'runomni /twc/util/load.pyc {final_id} {flavor.capitalize()}'
-                            res = await provision.execute_telnet_persistent(cid, load_cmd, timeout=10.0)
-                        else:
-                            res = await provision.telnet_load_i1_pres(
-                                hostname=hostname, port=telnet_port,
-                                flavor=flavor, PresentationId=final_id,
-                                user=user, password=password, su=su
-                            )
-                elif action == "Run":
-                    if protocol == 'ssh':
-                        if use_persistent:
-                            run_cmd = f'runomni /twc/util/run.pyc {final_id}'
-                            res = await provision.execute_ssh_persistent(cid, run_cmd, timeout=10.0, use_shell=True)
-                        else:
-                            res = await provision.ssh_run_i1_pres(
-                                hostname=hostname, user=user, password=password, port=port,
-                                flavor=flavor, PresentationId=final_id, su=su
-                            )
-                    elif protocol == 'telnet':
-                        telnet_port = int(port) if port else 23
-                        if use_persistent:
-                            run_cmd = f'runomni /twc/util/run.pyc {final_id}'
-                            res = await provision.execute_telnet_persistent(cid, run_cmd, timeout=10.0)
-                        else:
-                            res = await provision.telnet_run_i1_pres(
-                                hostname=hostname, port=telnet_port,
-                                flavor=flavor, PresentationId=final_id,
-                                user=user, password=password, su=su
-                            )
+    def _update_countdown(self):
+        if self.next_event_dt:
+            now = datetime.now()
+            next_dt = self.next_event_dt
+            if hasattr(next_dt, 'tzinfo') and next_dt.tzinfo is not None:
+                next_dt = next_dt.replace(tzinfo=None)
+            diff = next_dt - now
+            if diff.total_seconds() > 0:
+                self.next_event_countdown = str(diff).split('.')[0]
             else:
-                if action == "LoadRun":
-                    if protocol == 'ssh':
-                        if use_persistent:
-                            loadrun_cmd = f'"{provision.i2exec}" loadRunPres(Flavor="{flavor}",Duration="{duration}",PresentationId="{final_id}")'
-                            res = await provision.execute_ssh_persistent(cid, loadrun_cmd, timeout=15.0, use_shell=bool(su))
-                        else:
-                            res = await provision.ssh_loadrun_i2_pres(
-                                hostname=hostname, user=user, password=password, port=port,
-                                flavor=flavor, PresentationId=final_id, duration=duration, su=su
-                            )
-                    elif protocol == 'telnet':
-                        telnet_port = int(port) if port else 23
-                        if use_persistent:
-                            res = await provision.execute_telnet_persistent(cid, f'loadRunPres(Flavor="{flavor}",Duration="{duration}",PresentationId="{final_id}")', timeout=15.0)
-                        else:
-                            res = await provision.telnet_loadrun_i2_pres(
-                                hostname=hostname, port=telnet_port,
-                                flavor=flavor, PresentationId=final_id, duration=duration,
-                                user=user, password=password
-                            )
-                    elif protocol == 'udp':
-                        udp_port = int(port) if port else 7787
-                        await provision.execute_udp_load_i2_pres(
-                            hostname=hostname, port=udp_port,
-                            flavor=flavor, PresentationId=final_id, duration=duration
-                        )
-                        await provision.execute_udp_run_i2_pres(
-                            hostname=hostname, port=udp_port, PresentationId=final_id
-                        )
-                        cmd_info = f"UDP i2 LoadRun pres={final_id}"
-                    elif protocol == 'subprocess':
-                        res = await provision.subproc_loadrun_i2_pres(
-                            flavor=flavor, PresentationId=final_id, duration=duration
-                        )
-                elif action == "Load":
-                    if protocol == 'ssh':
-                        if use_persistent:
-                            load_cmd = f'"{provision.i2exec}" loadPres(Flavor="{flavor}",Duration="{duration}",PresentationId="{final_id}")'
-                            res = await provision.execute_ssh_persistent(cid, load_cmd, timeout=15.0, use_shell=bool(su))
-                        else:
-                            res = await provision.ssh_load_i2_pres(
-                                hostname=hostname, user=user, password=password, port=port,
-                                flavor=flavor, PresentationId=final_id, duration=duration, su=su
-                            )
-                    elif protocol == 'telnet':
-                        telnet_port = int(port) if port else 23
-                        if use_persistent:
-                            res = await provision.execute_telnet_persistent(cid, f'loadPres(Flavor="{flavor}",Duration="{duration}",PresentationId="{final_id}")', timeout=15.0)
-                        else:
-                            res = await provision.telnet_load_i2_pres(
-                                hostname=hostname, port=telnet_port,
-                                flavor=flavor, PresentationId=final_id, duration=duration,
-                                user=user, password=password
-                            )
-                    elif protocol == 'udp':
-                        udp_port = int(port) if port else 7787
-                        await provision.execute_udp_load_i2_pres(
-                            hostname=hostname, port=udp_port,
-                            flavor=flavor, PresentationId=final_id, duration=duration
-                        )
-                    elif protocol == 'subprocess':
-                        res = await provision.subproc_load_i2_pres(
-                            flavor=flavor, PresentationId=final_id, duration=duration
-                        )
-                elif action == "Run":
-                    if protocol == 'ssh':
-                        if use_persistent:
-                            run_cmd = f'"{provision.i2exec}" runPres(PresentationId="{final_id}")'
-                            res = await provision.execute_ssh_persistent(cid, run_cmd, timeout=15.0, use_shell=bool(su))
-                        else:
-                            res = await provision.ssh_run_i2_pres(
-                                hostname=hostname, user=user, password=password, port=port,
-                                PresentationId=final_id, su=su
-                            )
-                    elif protocol == 'telnet':
-                        telnet_port = int(port) if port else 23
-                        if use_persistent:
-                            res = await provision.execute_telnet_persistent(cid, f'runPres(PresentationId="{final_id}")', timeout=15.0)
-                        else:
-                            res = await provision.telnet_run_i2_pres(
-                                hostname=hostname, port=telnet_port,
-                                PresentationId=final_id, user=user, password=password
-                            )
-                    elif protocol == 'udp':
-                        udp_port = int(port) if port else 7787
-                        await provision.execute_udp_run_i2_pres(
-                            hostname=hostname, port=udp_port, PresentationId=final_id
-                        )
-                    elif protocol == 'subprocess':
-                        res = await provision.subproc_run_i2_pres(PresentationId=final_id)
+                self.next_event_countdown = "00:00:00"
+                self._update_next_event()
+                
+    def _update_next_event(self):
+        if not self._scheduler:
+            return
             
-            self._log_execution_result(cid, res, cmd_info)
+        jobs = self._scheduler.get_jobs()
+        next_run = None
+        next_name = None
+        
+        for job in jobs:
+            if job.id.startswith('event_') and '_prepare' in job.id:
+                if job.next_run_time:
+                    if next_run is None or job.next_run_time < next_run:
+                        next_run = job.next_run_time
+                        next_name = job.id.replace('event_', '').replace('_prepare', '')
+                        
+        if next_run:
+            actual_time = next_run + timedelta(seconds=10)
+            actual_time = actual_time.replace(second=0, microsecond=0) + timedelta(minutes=1)
+
+            if hasattr(actual_time, 'tzinfo') and actual_time.tzinfo is not None:
+                actual_time = actual_time.replace(tzinfo=None)
+            
+            self.next_event_dt = actual_time
+            self.next_event_time = actual_time.strftime("%a %I:%M %p")
+            self.next_event_name = next_name or "Unknown"
+        else:
+            self.next_event_dt = None
+            self.next_event_time = "N/A"
+            self.next_event_name = "None"
+            
+    def _on_job_event(self, event: JobExecutionEvent):
+        if event.exception:
+            logger.error(f"Job {event.job_id} failed: {event.exception}")
+        elif hasattr(event, 'retval'):
+            logger.debug(f"Job {event.job_id} completed successfully")
+            
+    @property
+    def loop(self) -> Optional[asyncio.AbstractEventLoop]:
+        return self._loop
+        
+    async def _execute_single_event(self, event_data: Dict):
+        await self._execute_event(event_data, triggers=None, is_startup=False)
+    
+    def grab_all_events(self) -> List[Dict]:
+        with self._cache_lock:
+            return list(self._cached_events)
+            
+    def write_event(self, event_data: Dict):
+        try:
+            if os.path.exists(self.timetable_file):
+                tree = ET.parse(self.timetable_file)
+                root = tree.getroot()
+            else:
+                root = ET.Element('timetable')
+                tree = ET.ElementTree(root)
+
+            display_name = event_data.get('DisplayName', '')
+            existing = None
+            for ev in root.findall('event'):
+                dn = ev.find('DisplayName')
+                if dn is not None and dn.text == display_name:
+                    existing = ev
+                    break
                     
+            if existing is not None:
+                root.remove(existing)
+            new_elem = ET.SubElement(root, 'event')
+            self._populate_event_element(new_elem, event_data)
+            self._indent(root)
+            tree.write(self.timetable_file, encoding='unicode', xml_declaration=True)
+            self._reload_events()
+            self._schedule_all_events()
+            
         except Exception as e:
-            logger.error(f"[{cid}] Dispatch action error: {e}")
+            logger.error(f"Error writing event: {e}")
+            
+    def delete_event(self, display_name: str) -> bool:
+        try:
+            if not os.path.exists(self.timetable_file):
+                return False
+                
+            tree = ET.parse(self.timetable_file)
+            root = tree.getroot()
+            
+            for ev in root.findall('event'):
+                dn = ev.find('DisplayName')
+                if dn is not None and dn.text == display_name:
+                    root.remove(ev)
+                    self._indent(root)
+                    tree.write(self.timetable_file, encoding='unicode', xml_declaration=True)
+                    
+                    self._reload_events()
+                    self._schedule_all_events()
+                    return True
+                    
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error deleting event: {e}")
+            return False
+            
+    def edit_event(self, old_display_name: str, new_event_data: Dict) -> bool:
+        try:
+            if not os.path.exists(self.timetable_file):
+                return False
+                
+            tree = ET.parse(self.timetable_file)
+            root = tree.getroot()
+            
+            for ev in root.findall('event'):
+                dn = ev.find('DisplayName')
+                if dn is not None and dn.text == old_display_name:
+                    root.remove(ev)
+                    new_elem = ET.SubElement(root, 'event')
+                    self._populate_event_element(new_elem, new_event_data)
+                    
+                    self._indent(root)
+                    tree.write(self.timetable_file, encoding='unicode', xml_declaration=True)
+                    
+                    self._reload_events()
+                    self._schedule_all_events()
+                    return True
+                    
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error editing event: {e}")
+            return False
+            
+    def does_event_match_time(self, event: Dict, target_time: datetime) -> bool:
+        if not event.get('Enabled', False):
+            return False
+        event_days = event.get('Days', [])
+        if event_days and target_time.strftime("%A") not in event_days:
+            return False
+        event_months = event.get('Months', [])
+        if event_months and str(target_time.month) not in event_months:
+            return False
+        event_weeks = event.get('Weeks', [])
+        if event_weeks:
+            week_num = (target_time.day - 1) // 7 + 1
+            if str(week_num) not in event_weeks:
+                return False
+        event_hours = event.get('Hours', [])
+        if event_hours:
+            match_hour = False
+            for h_rule in event_hours:
+                try:
+                    rule_h = int(h_rule.get('hour', 0))
+                    rule_p = h_rule.get('period', 'AM')
+                    
+                    if rule_p == 'PM' and rule_h != 12:
+                        rule_h += 12
+                    elif rule_p == 'AM' and rule_h == 12:
+                        rule_h = 0
+                        
+                    if rule_h == target_time.hour:
+                        match_hour = True
+                        break
+                except ValueError:
+                    continue
+                    
+            if not match_hour:
+                return False
+        tm_vals = event.get('TenMinuteInterval', [])
+        m_val_str = str(event.get('MinuteInterval', '')).strip()
+        m_val = int(m_val_str) if m_val_str and m_val_str.isdigit() else 0
+        bases = [int(x) for x in tm_vals if x.isdigit()] if tm_vals else [0]
+        allowed_minutes = [(b + m_val) % 60 for b in bases]
+        if target_time.minute not in allowed_minutes:
+            return False
+        return True
+        
+    def _populate_event_element(self, event_elem, event_data):
+        for key in ['DisplayName', 'Category', 'TargetID', 'CustomCommand', 'MinuteInterval']:
+            sub = ET.SubElement(event_elem, key)
+            sub.text = str(event_data.get(key, ''))
+        tm = ET.SubElement(event_elem, 'TenMinuteInterval')
+        for val in event_data.get('TenMinuteInterval', []):
+            s = ET.SubElement(tm, 'TenMinute')
+            s.text = str(val)
+        h_container = ET.SubElement(event_elem, 'Hours')
+        for h_item in event_data.get('Hours', []):
+            h = ET.SubElement(h_container, 'Hour')
+            h.text = str(h_item.get('hour', ''))
+            h.set('period', h_item.get('period', 'AM/PM'))
+        d_container = ET.SubElement(event_elem, 'Days')
+        for d in event_data.get('Days', []):
+            s = ET.SubElement(d_container, 'Day')
+            s.text = str(d)
+        w_container = ET.SubElement(event_elem, 'Weeks')
+        for w in event_data.get('Weeks', []):
+            s = ET.SubElement(w_container, 'Week')
+            s.text = str(w)
+        m_container = ET.SubElement(event_elem, 'Months')
+        for m in event_data.get('Months', []):
+            s = ET.SubElement(m_container, 'Month')
+            s.text = str(m)
+        ras_elem = ET.SubElement(event_elem, 'RunAtStartup')
+        ras_elem.text = str(event_data.get('RunAtStartup', False))
+        en_elem = ET.SubElement(event_elem, 'Enabled')
+        en_elem.text = str(event_data.get('Enabled', True))
+        cc_container = ET.SubElement(event_elem, 'ClientConfigs')
+        c_configs = event_data.get('client_config', {})
+        for cid, config in c_configs.items():
+            cc = ET.SubElement(cc_container, 'ClientConfig')
+            cc.set('id', cid)
+            
+            for key, default in [('action', 'LoadRun'), ('flavor', ''), ('presentation_id', ''),
+                                  ('duration', ''), ('logo', ''), ('command', ''), 
+                                  ('su', ''), ('ldl_state', '')]:
+                elem = ET.SubElement(cc, key.replace('_', '').title().replace('Id', 'ID'))
+                elem.text = str(config.get(key, default))
+                
+        c_container = ET.SubElement(event_elem, 'clients')
+        for c in event_data.get('clients', []):
+            s = ET.SubElement(c_container, 'client')
+            s.text = str(c)
+            
+        f_container = ET.SubElement(event_elem, 'flavor')
+        flavors = event_data.get('flavor', {})
+        for client_id, flav_val in flavors.items():
+            s = ET.SubElement(f_container, 'flavor')
+            s.text = flav_val
+            s.set('client', client_id)
+            
+    def _indent(self, elem, level=0):
+        i = "\n" + level * "    "
+        if len(elem):
+            if not elem.text or not elem.text.strip():
+                elem.text = i + "    "
+            if not elem.tail or not elem.tail.strip():
+                elem.tail = i
+            for child in elem:
+                self._indent(child, level + 1)
+            if not child.tail or not child.tail.strip():
+                child.tail = i
+        else:
+            if level and (not elem.tail or not elem.tail.strip()):
+                elem.tail = i
+
 
 if __name__ == "__main__":
     controller = star_controller()
@@ -4719,7 +4704,6 @@ if __name__ == "__main__":
     conn_thread.start()
     
     def cleanup_on_exit():
-        """Cleanup function to properly stop threads before exit."""
         try:
             if conn_thread.isRunning():
                 conn_thread.stop()

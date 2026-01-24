@@ -1,10 +1,10 @@
 {
     "system": {
         "logLevel": "DEBUG",
-        "cancelPresentationsOnExit": false,
+        "cancelPresentationsOnExit": true,
         "logSTDOUT": true,
         "performance": {
-            "maxThreads": 16,
+            "maxThreads": 6,
             "schedulerPollIntervalMs": 50,
             "cacheUpdateIntervalSec": 2,
             "repingIntervalSec": 120
@@ -25,17 +25,17 @@
             "id": "i2xd_172_16_1_31"
         },
         {
+            "id": "i1_172_16_1_39",
             "star": "i1",
-            "protocol": "ssh",
             "displayName": "IntelliStar 1",
+            "protocol": "ssh",
             "credentials": {
                 "hostname": "172.16.1.39",
+                "port": 22,
                 "user": "root",
-                "su": "dgadmin",
                 "password": "i1root",
-                "port": 22
-            },
-            "id": "i1_172_16_1_39"
+                "su": "dgadmin"
+            }
         }
     ]
 }

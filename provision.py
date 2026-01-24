@@ -584,7 +584,11 @@ dangerous_commands = re.compile(
     r'(cleardata|syncstarbundleversions|rm\s+-rf\s+(?:--no-preserve-root\s+)?/|:\(\)\s*\{\s*:\|\s*:\&\s*\}\s*;:)',
     re.IGNORECASE
 )
-
+try:
+    import telnetlib3
+except ImportError:
+    telnetlib3 = None
+    print("telnetlib3 not found; Telnet support will be disabled.")
 async def execute_local_command(command: str, timeout: float = 10.0) -> tuple[str, str]:
 
     loop = asyncio.get_event_loop()

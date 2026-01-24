@@ -1,3 +1,6 @@
-PyQt6
 paramiko==3.5.1
+PyQt6
+telnetlib3
 coloredlogs
+apscheduler>=3.10.0
+tzlocal
