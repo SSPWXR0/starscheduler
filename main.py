@@ -4069,26 +4069,31 @@ class EventSchedulerEngine:
                 load_fire_time = target_time + timedelta(seconds=load_offset)
                 run_fire_time = target_time + timedelta(seconds=run_offset)
 
-                detail_string = {
-                    "i2": f"{action}(flavor='{flavor}',presentationId='{pres_id}',duration={duration}) with load_offset={load_offset}, run_offset={run_offset}",
+                load_detail_string = {
+                    "i2": f"load(flavor='{flavor}',presentationId='{pres_id}',duration={duration}) with load_offset={load_offset}, run_offset={run_offset}",
                     "i1": f"flavor='{flavor}'",
+                }
+
+                run_detail_string = {
+                    "i2": f"run(presentationId='{pres_id}') with offset {run_offset}",
+                    "i1": f"presentationId='{pres_id}'",
                 }
                 
                 load_delay = (load_fire_time - now).total_seconds()
                 if load_delay > 0:
                     await asyncio.sleep(load_delay)
-                logger.info(f"Dispatching Load to {protocol.upper()} {star_type.upper()} client {cid} with {detail_string.get(star_type.removesuffix('xd').removesuffix('jr'), '')}")
+                logger.info(f"Dispatching Load to {protocol.upper()} {star_type.upper()} client {cid} with {load_detail_string.get(star_type.removesuffix('xd').removesuffix('jr'), '')}")
                 await self._execute_load_action(client, conf, event, flavor, pres_id, duration, is_i1, su, use_persistent)
                 
                 now = datetime.now()
                 run_delay = (run_fire_time - now).total_seconds()
                 if run_delay > 0:
                     await asyncio.sleep(run_delay)
-                logger.info(f"Dispatching Run to {protocol.upper()} {star_type.upper()} client {cid} with {detail_string.get(star_type.removesuffix('xd').removesuffix('jr'), '')}")
+                logger.info(f"Dispatching Run to {protocol.upper()} {star_type.upper()} client {cid} with {run_detail_string.get(star_type.removesuffix('xd').removesuffix('jr'), '')}")
                 await self._execute_run_action(client, conf, event, pres_id, is_i1, su, use_persistent)
                 return
             else:
-                logger.info(f"Dispatching cue command to {protocol.upper()} {star_type.upper()} client {cid} with {detail_string.get(star_type.removesuffix('xd').removesuffix('jr'), '')}")
+                logger.info(f"Dispatching cue command to {protocol.upper()} {star_type.upper()} client {cid} with {load_detail_string.get(star_type.removesuffix('xd').removesuffix('jr'), '')}")
                 await self._execute_loadrun_action(client, conf, event, flavor, pres_id, duration, is_i1, su, use_persistent)
                 return
         
