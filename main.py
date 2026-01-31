@@ -4039,103 +4039,101 @@ class EventSchedulerEngine:
             logger.error(f"Error executing event: {e}")
             
     async def _dispatch_client_action(self, client: Dict, conf: Dict, event: Dict, target_time: Optional[datetime], is_manual: bool):
-        cid = client.get('id') or client.get('star')
         creds = client.get('credentials', {})
+        cid = client.get('id') or client.get('star')
+        star_type = client.get('star', 'unknown')
+        is_i1 = star_type == 'i1'
+        normalized_star = star_type.removesuffix('xd').removesuffix('jr')
+        protocol = client.get('protocol', 'ssh')
         hostname = creds.get('hostname')
         user = creds.get('user')
         password = creds.get('password')
         port = creds.get('port', 22)
-        star_type = client.get('star', 'unknown')
-        protocol = client.get('protocol', 'ssh')
+        su = creds.get('su', 'dgadmin' if is_i1 else None)
+        use_persistent = provision.get_connection_registry().get_session(cid) is not None
         action = conf.get('action', 'LoadRun')
         flavor = conf.get('flavor', '')
         pres_id = conf.get('presentation_id', '') or event.get('TargetID', '')
         duration_seconds = int(conf.get('duration', 60)) if str(conf.get('duration', 60)).isdigit() else 60
-        duration = duration_seconds * 30
+        duration_frames = duration_seconds * 30
         ldl_state = conf.get('ldl_state', '1')
         cmd = conf.get('command', '') or event.get('CustomCommand', '')
-        is_i1 = (star_type == 'i1')
-        su = creds.get('su', 'dgadmin') if is_i1 else creds.get('su', None)
-        registry = provision.get_connection_registry()
-        use_persistent = registry.get_session(cid) is not None
-        
         separate_load_run = conf.get('separate_load_run', False)
         load_offset = int(conf.get('load_offset', -20))
         run_offset = int(conf.get('run_offset', -12))
-        
-        if action == "LoadRun" and target_time and not is_manual:
-            now = datetime.now()
-            if separate_load_run:
-                load_fire_time = target_time + timedelta(seconds=load_offset)
-                run_fire_time = target_time + timedelta(seconds=run_offset)
 
-                load_detail_string = {
-                    "i2": f"load(flavor='{flavor}',presentationId='{pres_id}',duration={duration}) with load_offset={load_offset}, run_offset={run_offset}",
-                    "i1": f"flavor='{flavor}'",
-                }
-
-                run_detail_string = {
-                    "i2": f"run(presentationId='{pres_id}') with offset {run_offset}",
-                    "i1": f"presentationId='{pres_id}'",
-                }
-                
-                load_delay = (load_fire_time - now).total_seconds()
-                if load_delay > 0:
-                    await asyncio.sleep(load_delay)
-                logger.info(f"Dispatching Load to {protocol.upper()} {star_type.upper()} client {cid} with {load_detail_string.get(star_type.removesuffix('xd').removesuffix('jr'), '')}")
-                await self._execute_load_action(client, conf, event, flavor, pres_id, duration, is_i1, su, use_persistent)
-                
-                now = datetime.now()
-                run_delay = (run_fire_time - now).total_seconds()
-                if run_delay > 0:
-                    await asyncio.sleep(run_delay)
-                logger.info(f"Dispatching Run to {protocol.upper()} {star_type.upper()} client {cid} with {run_detail_string.get(star_type.removesuffix('xd').removesuffix('jr'), '')}")
-                await self._execute_run_action(client, conf, event, pres_id, is_i1, su, use_persistent)
-                return
-            else:
-                logger.info(f"Dispatching cue command to {protocol.upper()} {star_type.upper()} client {cid} with {load_detail_string.get(star_type.removesuffix('xd').removesuffix('jr'), '')}")
-                await self._execute_loadrun_action(client, conf, event, flavor, pres_id, duration, is_i1, su, use_persistent)
-                return
+        if action == "LoadRun" and target_time and not is_manual and separate_load_run:
+            load_time = target_time + timedelta(seconds=load_offset)
+            run_time = target_time + timedelta(seconds=run_offset)
+            
+            load_details = {
+                "i2": f"load(flavor='{flavor}',presentationId='{pres_id}',duration={duration_frames}) with load_offset={load_offset}, run_offset={run_offset}",
+                "i1": f"flavor='{flavor}'"
+            }.get(normalized_star, '')
+            
+            run_details = {
+                "i2": f"run(presentationId='{pres_id}') with offset {run_offset}",
+                "i1": f"presentationId='{pres_id}'"
+            }.get(normalized_star, '')
+            
+            load_delay = (load_time - datetime.now()).total_seconds()
+            if load_delay > 0:
+                await asyncio.sleep(load_delay)
+            
+            logger.info(f"Dispatching Load to {protocol.upper()} {star_type.upper()} client {cid} with {load_details}")
+            await self._execute_load_action(client, conf, event, flavor, pres_id, duration_frames, is_i1, su, use_persistent)
+            
+            run_delay = (run_time - datetime.now()).total_seconds()
+            if run_delay > 0:
+                await asyncio.sleep(run_delay)
+            
+            logger.info(f"Dispatching Run to {protocol.upper()} {star_type.upper()} client {cid} with {run_details}")
+            await self._execute_run_action(client, conf, event, pres_id, is_i1, su, use_persistent)
+            return
         
-        if action == "LDL (On/Off)" and is_i1:
-            logger.info(f"Dispatching LDL command to {protocol.upper()} {star_type.upper()} client {cid} with state={ldl_state}")
-        
-        if action == "Custom Command":
-            logger.info(f"Dispatching Custom Command to {protocol.upper()} {star_type.upper()} client {cid} with command {cmd[:50]}")
-                    
         logger.info(f"Dispatching action '{action}' to {protocol.upper()} {star_type.upper()} client {cid}")
         
         try:
             if action == "Custom Command":
                 if not cmd:
+                    logger.warning(f"Empty custom command for client {cid}")
                     return
-                res = await self._execute_command(protocol, cid, hostname, user, password, 
-                                                   port, cmd, su, use_persistent)
-                self._log_result(cid, res, f"{protocol.upper()} Custom: {cmd[:50]}")
                 
+                logger.info(f"Dispatching Custom Command to {protocol.upper()} {star_type.upper()} client {cid} with command {cmd[:50]}")
+                res = await self._execute_command(protocol, cid, hostname, user, password, port, cmd, su, use_persistent)
+                self._log_result(cid, res, f"{protocol.upper()} Custom: {cmd[:50]}")
+            
             elif action == "Cancel":
-                final_id = pres_id if pres_id else ('local' if is_i1 else '1')
+                final_id = pres_id or ('local' if is_i1 else '1')
+                
                 if protocol == 'ssh' and star_type.startswith('i2'):
                     cancel_cmd = f'"{provision.i2exec}" cancelPres(PresentationId="{final_id}")'
-                    res = await self._execute_command(protocol, cid, hostname, user, password,
-                                                       port, cancel_cmd, su, use_persistent)
+                    res = await self._execute_command(protocol, cid, hostname, user, password, port, cancel_cmd, su, use_persistent)
                     self._log_result(cid, res, f"{protocol.upper()} Cancel pres_id={final_id}")
+                
                 elif protocol == 'subprocess':
                     res = await provision.subproc_cancel_i2_pres(PresentationId=final_id)
                     self._log_result(cid, res, f"Subprocess Cancel pres_id={final_id}")
-                    
-            elif is_i1 and action == "LDL (On/Off)":
+            
+            elif action == "LDL (On/Off)" and is_i1:
                 target_state = int(ldl_state) if str(ldl_state).isdigit() else 1
                 ldl_cmd = f'runomni /twc/util/toggleNationalLDL.pyc {target_state}'
-                res = await self._execute_command(protocol, cid, hostname, user, password,
-                                                   port, ldl_cmd, su, use_persistent)
+                
+                logger.info(f"Dispatching LDL command to {protocol.upper()} {star_type.upper()} client {cid} with state={target_state}")
+                res = await self._execute_command(protocol, cid, hostname, user, password, port, ldl_cmd, su, use_persistent)
                 self._log_result(cid, res, f"{protocol.upper()} i1 LDL state={target_state}")
-                
+            
             elif action == "LoadRun":
-                await self._execute_loadrun_action(client, conf, event, flavor, pres_id, duration, is_i1, su, use_persistent)
+                load_details = {
+                    "i2": f"load(flavor='{flavor}',presentationId='{pres_id}',duration={duration_frames})",
+                    "i1": f"flavor='{flavor}'"
+                }.get(normalized_star, '')
                 
+                logger.info(f"Dispatching LoadRun to {protocol.upper()} {star_type.upper()} client {cid} with {load_details}")
+                await self._execute_loadrun_action(client, conf, event, flavor, pres_id, duration_frames, is_i1, su, use_persistent)
+        
         except Exception as e:
-            logger.error(f"Error dispatching to {cid}: {e}")
+            logger.error(f"Error dispatching action '{action}' to {cid}: {e}", exc_info=True)
 
     async def _execute_loadrun_action(self, client, conf, event, flavor, pres_id, duration, is_i1, su, use_persistent):
         await self._execute_presentation_action(client, conf, event, "LoadRun", flavor, pres_id, duration, is_i1, su, use_persistent)
