@@ -47,27 +47,27 @@ def generate_action_id(data: Dict) -> str:
     s = "|".join(parts)
     return hashlib.md5(s.encode('utf-8')).hexdigest()
 
-def get_optimal_thread_count(max_threads: int = 16, scale_factor: float = 1.0) -> int:
+def get_optimal_thread_count(max_threads: int = 4, scale_factor: float = 0.5) -> int:
     try:
         cpu_count = os.cpu_count() or 2
         optimal = int(min(cpu_count * scale_factor, max_threads))
-        return max(2, optimal)
+        return max(1, optimal)
     except Exception:
-        return 4
+        return 2
 
 _perf_config = {
-    'maxThreads': 16,
-    'schedulerPollIntervalMs': 50,
-    'cacheUpdateIntervalSec': 2
+    'maxThreads': 4,
+    'schedulerPollIntervalMs': 100,
+    'cacheUpdateIntervalSec': 5
 }
 
 def load_performance_config(config: dict) -> None:
     global _perf_config
     perf = config.get('system', {}).get('performance', {})
     _perf_config.update({
-        'maxThreads': perf.get('maxThreads', 16),
-        'schedulerPollIntervalMs': perf.get('schedulerPollIntervalMs', 50),
-        'cacheUpdateIntervalSec': perf.get('cacheUpdateIntervalSec', 2)
+        'maxThreads': perf.get('maxThreads', 4),
+        'schedulerPollIntervalMs': perf.get('schedulerPollIntervalMs', 100),
+        'cacheUpdateIntervalSec': perf.get('cacheUpdateIntervalSec', 5)
     })
     provision.configure_executor(_perf_config['maxThreads'])
     logger.info(f"Performance config loaded: maxThreads={_perf_config['maxThreads']}, "
@@ -86,7 +86,6 @@ window_height = 960
 
 STAR_NAMES = {
     "i1": "IntelliStar 1",
-    "i2": "generic IntelliStar 2",
     "i2hd": "IntelliStar 2 HD",
     "i2jr": "IntelliStar 2 Jr",
     "i2xd": "IntelliStar 2 XD",
@@ -569,12 +568,14 @@ class ClientActionCard(QtWidgets.QFrame):
         self.layout_main = QtWidgets.QVBoxLayout(self)
         self.layout_main.setSpacing(2)
         self.layout_main.setContentsMargins(5, 5, 5, 5)
-        self.setFixedHeight(96)
+        self.setMaximumHeight(120)
+        self.setMinimumHeight(32)
         self.setup_header(client_id)
         self.param_stack = QtWidgets.QStackedWidget()
         self.param_stack.setStyleSheet("border: none; background: transparent;")
         self.layout_main.addWidget(self.param_stack)
         self.setup_param_pages()
+        self.setup_offset_row()
         self.set_initial_state()
 
     def setup_header(self, client_id):
@@ -583,7 +584,8 @@ class ClientActionCard(QtWidgets.QFrame):
         header_layout.setSpacing(4)
         header_layout.addWidget(QtWidgets.QLabel("Client:"))
         self.client_combo = QtWidgets.QComboBox()
-        self.client_combo.setMinimumWidth(120)
+        self.setMaximumHeight(120)
+        self.setMinimumHeight(32)
         self.client_combo.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Fixed)
         self.client_combo.setFixedHeight(24)
         sorted_clients = sorted(self.clients, key=lambda x: x.get('displayName') or x.get('id', ''))
@@ -606,7 +608,7 @@ class ClientActionCard(QtWidgets.QFrame):
         header_layout.addWidget(self.action_combo)
         header_layout.addStretch()
         del_btn = QtWidgets.QPushButton("x")
-        del_btn.setFixedSize(20, 20)
+        del_btn.setFixedSize(32, 32)
         del_btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
         del_btn.setToolTip("Remove Action")
         del_btn.clicked.connect(self.delete_clicked.emit)
@@ -626,11 +628,11 @@ class ClientActionCard(QtWidgets.QFrame):
         self.action_combo.clear()
         if is_i1:
             self.action_combo.addItems([
-                "LoadRun", "Load", "Run", "LDL (On/Off)", "Custom Command"
+                "LoadRun", "LDL (On/Off)", "Custom Command"
             ])
         else:
             self.action_combo.addItems([
-                "LoadRun", "Load", "Run", "Cancel", "Custom Command"
+                "LoadRun", "Cancel", "Custom Command"
             ])
         idx = self.action_combo.findText(current)
         if idx >= 0:
@@ -678,14 +680,6 @@ class ClientActionCard(QtWidgets.QFrame):
         self.ui_i2_load["logo"] = e
         lay.addWidget(e, 1, 3)
         self.param_stack.addWidget(self.page_i2_load)
-        self.page_i2_run = QtWidgets.QWidget()
-        self.ui_i2_run = {}
-        lay = QtWidgets.QHBoxLayout(self.page_i2_run)
-        lay.setContentsMargins(0,0,0,0)
-        lay.setSpacing(10)
-        self.add_field(lay, "PresID:", "pres_id", self.ui_i2_run)
-        lay.addStretch()
-        self.param_stack.addWidget(self.page_i2_run)
         self.page_i1_load = QtWidgets.QWidget()
         self.ui_i1_load = {}
         lay = QtWidgets.QHBoxLayout(self.page_i1_load)
@@ -694,13 +688,6 @@ class ClientActionCard(QtWidgets.QFrame):
         self.add_field(lay, "Flavor:", "flavor", self.ui_i1_load)
         lay.addStretch()
         self.param_stack.addWidget(self.page_i1_load)
-        self.page_i1_run = QtWidgets.QWidget()
-        lay = QtWidgets.QHBoxLayout(self.page_i1_run)
-        lay.setContentsMargins(0,0,0,0)
-        lay.setSpacing(10)
-        lay.addWidget(QtWidgets.QLabel("No parameters."))
-        lay.addStretch()
-        self.param_stack.addWidget(self.page_i1_run)
         self.page_custom = QtWidgets.QWidget()
         self.ui_custom = {}
         lay = QtWidgets.QHBoxLayout(self.page_custom)
@@ -721,6 +708,58 @@ class ClientActionCard(QtWidgets.QFrame):
         lay.addStretch()
         self.param_stack.addWidget(self.page_ldl)
 
+    def setup_offset_row(self):
+        offset_layout = QtWidgets.QHBoxLayout()
+        offset_layout.setContentsMargins(0, 0, 0, 0)
+        offset_layout.setSpacing(8)
+        
+        self.separate_chk = QtWidgets.QCheckBox("Send separate Load/Run?")
+        self.separate_chk.setStyleSheet("color: #bbb; font-size: 11px;")
+        self.separate_chk.stateChanged.connect(self._on_separate_changed)
+        offset_layout.addWidget(self.separate_chk)
+        
+        self.load_offset_label = QtWidgets.QLabel("Load Offset (s):")
+        self.load_offset_label.setStyleSheet("color: #888; font-size: 11px;")
+        self.load_offset_label.setVisible(False)
+        offset_layout.addWidget(self.load_offset_label)
+        
+        self.load_offset_spin = QtWidgets.QSpinBox()
+        self.load_offset_spin.setRange(-59, 59)
+        self.load_offset_spin.setValue(-20)
+        self.load_offset_spin.setFixedWidth(60)
+        self.load_offset_spin.setFixedHeight(22)
+        self.load_offset_spin.setVisible(False)
+        offset_layout.addWidget(self.load_offset_spin)
+        
+        self.run_offset_label = QtWidgets.QLabel("Run Offset (s):")
+        self.run_offset_label.setStyleSheet("color: #888; font-size: 11px;")
+        self.run_offset_label.setVisible(False)
+        offset_layout.addWidget(self.run_offset_label)
+        
+        self.run_offset_spin = QtWidgets.QSpinBox()
+        self.run_offset_spin.setRange(-59, 59)
+        self.run_offset_spin.setValue(-12)
+        self.run_offset_spin.setFixedWidth(60)
+        self.run_offset_spin.setFixedHeight(22)
+        self.run_offset_spin.setVisible(False)
+        offset_layout.addWidget(self.run_offset_spin)
+        
+        offset_layout.addStretch()
+        self.layout_main.addLayout(offset_layout)
+        
+    def _on_separate_changed(self, state):
+        if hasattr(QtCore.Qt.CheckState, 'Checked'):
+            checked_val = QtCore.Qt.CheckState.Checked
+            if hasattr(checked_val, 'value'):
+                checked_val = checked_val.value
+        else:
+            checked_val = QtCore.Qt.Checked
+        visible = (state == checked_val) if isinstance(state, int) else (state == QtCore.Qt.CheckState.Checked)
+        self.load_offset_label.setVisible(visible)
+        self.load_offset_spin.setVisible(visible)
+        self.run_offset_label.setVisible(visible)
+        self.run_offset_spin.setVisible(visible)
+
     def add_field(self, layout, label, key, store, width=None):
         lbl = QtWidgets.QLabel(label)
         lbl.setStyleSheet("color: #bbb; margin-right: 2px; font-size: 11px;")
@@ -735,24 +774,30 @@ class ClientActionCard(QtWidgets.QFrame):
         data = self.client_combo.currentData()
         star = data.get('star', 'i2').lower() if data else 'i2'
         is_i1 = ('i1' in star) and not ('i2' in star)
+        
+        show_offset = (action == "LoadRun")
+        self.separate_chk.setVisible(show_offset)
+        if not show_offset:
+            self.separate_chk.setChecked(False)
+        
         if action == "Custom Command":
             self.param_stack.setCurrentWidget(self.page_custom)
         elif is_i1:
             if action == "LDL (On/Off)":
                 self.param_stack.setCurrentWidget(self.page_ldl)
-            elif action == "Run":
-                self.param_stack.setCurrentWidget(self.page_i1_run)
             else:
                 self.param_stack.setCurrentWidget(self.page_i1_load)
         else:
-            if action in ["Load", "LoadRun"]:
+            if action == "LoadRun":
                 self.param_stack.setCurrentWidget(self.page_i2_load)
             else:
-                self.param_stack.setCurrentWidget(self.page_i2_run)
+                self.param_stack.setCurrentWidget(self.param_stack.widget(0))
 
     def set_initial_state(self):
         self.update_action_options()
         action = self.config.get('action', 'LoadRun')
+        if action in ('Load', 'Run'):
+            action = 'LoadRun'
         if not self.config.get('action') and self.config.get('flavor'):
              action = "LoadRun"
         idx = self.action_combo.findText(action)
@@ -762,13 +807,19 @@ class ClientActionCard(QtWidgets.QFrame):
         if 'pres_id' in self.ui_i2_load: self.ui_i2_load['pres_id'].setText(self.config.get('presentation_id', '1'))
         if 'duration' in self.ui_i2_load: self.ui_i2_load['duration'].setText(self.config.get('duration', '60'))
         if 'logo' in self.ui_i2_load: self.ui_i2_load['logo'].setText(self.config.get('logo', ''))
-        if 'pres_id' in self.ui_i2_run: self.ui_i2_run['pres_id'].setText(self.config.get('presentation_id', '1'))
         if 'flavor' in self.ui_i1_load: self.ui_i1_load['flavor'].setText(self.config.get('flavor', ''))
         if 'command' in self.ui_custom: self.ui_custom['command'].setText(self.config.get('command', ''))
         if 'su' in self.ui_custom: self.ui_custom['su'].setText(self.config.get('su', ''))
         if 'state' in self.ui_ldl:
             val = self.config.get('ldl_state', '1')
             self.ui_ldl['state'].setCurrentIndex(0 if val == '1' else 1)
+        
+        # Set values regardless of checkbox state so they are 'ready' if checked
+        self.load_offset_spin.setValue(int(self.config.get('load_offset', -20)))
+        self.run_offset_spin.setValue(int(self.config.get('run_offset', -12)))
+        
+        separate = self.config.get('separate_load_run', False)
+        self.separate_chk.setChecked(separate)
 
     def get_config(self):
         client_data = self.client_combo.currentData()
@@ -778,7 +829,8 @@ class ClientActionCard(QtWidgets.QFrame):
         cfg = {
             'action': action,
             'flavor': '', 'presentation_id': '', 'duration': '', 'logo': '', 
-            'command': '', 'su': '', 'ldl_state': ''
+            'command': '', 'su': '', 'ldl_state': '',
+            'separate_load_run': False, 'load_offset': -20, 'run_offset': -12
         }
         w = self.param_stack.currentWidget()
         if w == self.page_i2_load:
@@ -786,8 +838,6 @@ class ClientActionCard(QtWidgets.QFrame):
             cfg['presentation_id'] = self.ui_i2_load['pres_id'].text()
             cfg['duration'] = self.ui_i2_load['duration'].text()
             cfg['logo'] = self.ui_i2_load['logo'].text()
-        elif w == self.page_i2_run:
-            cfg['presentation_id'] = self.ui_i2_run['pres_id'].text()
         elif w == self.page_i1_load:
             cfg['flavor'] = self.ui_i1_load['flavor'].text()
         elif w == self.page_custom:
@@ -795,6 +845,12 @@ class ClientActionCard(QtWidgets.QFrame):
             cfg['su'] = self.ui_custom['su'].text()
         elif w == self.page_ldl:
             cfg['ldl_state'] = '1' if self.ui_ldl['state'].currentIndex() == 0 else '0'
+        
+        if action == "LoadRun" and self.separate_chk.isChecked():
+            cfg['separate_load_run'] = True
+            cfg['load_offset'] = self.load_offset_spin.value()
+            cfg['run_offset'] = self.run_offset_spin.value()
+        
         return cid, cfg
 
     def set_data(self, data):
@@ -1123,7 +1179,7 @@ class EventDialog(QtWidgets.QDialog):
         client_select_layout.setContentsMargins(0,0,0,0)
         self.client_list = QtWidgets.QListWidget()
         self.client_list.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.NoSelection)
-        self.client_list.setFixedHeight(100)
+        self.client_list.setMaximumHeight(64)
         for client in self.clients:
              cid = client.get('id', 'unknown')
              name = client.get('displayName') or client.get('star') or cid
@@ -1273,7 +1329,10 @@ class EventDialog(QtWidgets.QDialog):
                      'logo': conf.get('logo', ''),
                      'command': conf.get('command', ''),
                      'su': conf.get('su', ''),
-                     'ldl_state': conf.get('ldl_state', '1')
+                     'ldl_state': conf.get('ldl_state', '1'),
+                     'separate_load_run': conf.get('separate_load_run', False),
+                     'load_offset': conf.get('load_offset', -20),
+                     'run_offset': conf.get('run_offset', -12)
                  }
                  self._add_action_card(data)
         else:
@@ -1593,10 +1652,14 @@ class QuickTimeEventTab(QtWidgets.QWidget):
         ldl_state = conf.get('ldl_state', '1')
         cmd = conf.get('command', '') or custom_cmd
         
+        separate_load_run = conf.get('separate_load_run', False)
+        load_offset = int(conf.get('load_offset', -20))
+        run_offset = int(conf.get('run_offset', -12))
+        
         is_i1 = (star_type == 'i1')
         su = creds.get('su', 'dgadmin') if is_i1 else creds.get('su', None)
         
-        def log_result(res, cmd_info):
+        def log_result(res, cmd_info, color):
             output = f"[COMMAND] {cmd_info}\n"
             if res and isinstance(res, tuple) and len(res) == 2:
                 stdout, stderr = res
@@ -1604,9 +1667,98 @@ class QuickTimeEventTab(QtWidgets.QWidget):
                     output += f"[STDOUT]\n{stdout}\n"
                 if stderr.strip():
                     output += f"[STDERR]\n{stderr}\n"
-            self.controller.client_manager.log_output(cid, output)
+            self.controller.client_manager.log_output(cid, output, color)
         
         try:
+            if action == "LoadRun" and separate_load_run:
+                cmd_info_load = f"{protocol.upper()} {'i1' if is_i1 else 'i2'} Load (Quick) pres={pres_id if pres_id else '1'}"
+                res_load = None
+                
+                if is_i1:
+                    if protocol == 'ssh':
+                        res_load = await provision.ssh_load_i1_pres(
+                            hostname=hostname, user=user, password=password, port=port,
+                            flavor=flavor, PresentationId=(pres_id or 'local'), su=su
+                        )
+                    elif protocol == 'telnet':
+                        telnet_port = int(port) if port else 23
+                        res_load = await provision.telnet_load_i1_pres(
+                            hostname=hostname, port=telnet_port,
+                            flavor=flavor, PresentationId=(pres_id or 'local'),
+                            user=user, password=password, su=su
+                        )
+                else:
+                    if protocol == 'ssh':
+                        res_load = await provision.ssh_load_i2_pres(
+                            hostname=hostname, user=user, password=password, port=port,
+                            flavor=flavor, PresentationId=(pres_id or '1'), duration=duration, su=su
+                        )
+                    elif protocol == 'telnet':
+                        telnet_port = int(port) if port else 23
+                        res_load = await provision.telnet_load_i2_pres(
+                            hostname=hostname, port=telnet_port,
+                            flavor=flavor, PresentationId=(pres_id or '1'), duration=duration,
+                            user=user, password=password
+                        )
+                    elif protocol == 'udp':
+                        udp_port = int(port) if port else 7787
+                        await provision.execute_udp_load_i2_pres(
+                            hostname=hostname, port=udp_port,
+                            flavor=flavor, PresentationId=(pres_id or '1'), duration=duration
+                        )
+                    elif protocol == 'subprocess':
+                        res_load = await provision.subproc_load_i2_pres(
+                            flavor=flavor, PresentationId=(pres_id or '1'), duration=duration
+                        )
+                
+                log_result(res_load, cmd_info_load)
+
+                delay = abs(run_offset)
+                if delay > 0:
+                    description = f"Waiting {delay}s because of 'Separate Load/Run' offset..."
+                    self.controller.client_manager.log_output(cid, f"[INFO] {description}\n")
+                    await asyncio.sleep(delay)
+                
+                cmd_info_run = f"{protocol.upper()} {'i1' if is_i1 else 'i2'} Run (Quick) pres={pres_id if pres_id else '1'}"
+                res_run = None
+                
+                if is_i1:
+                    if protocol == 'ssh':
+                        res_run = await provision.ssh_run_i1_pres(
+                            hostname=hostname, user=user, password=password, port=port,
+                            flavor=flavor, PresentationId=(pres_id or 'local'), su=su
+                        )
+                    elif protocol == 'telnet':
+                        telnet_port = int(port) if port else 23
+                        res_run = await provision.telnet_run_i1_pres(
+                            hostname=hostname, port=telnet_port,
+                            flavor=flavor, PresentationId=(pres_id or 'local'),
+                            user=user, password=password, su=su
+                        )
+                else:
+                    if protocol == 'ssh':
+                        res_run = await provision.ssh_run_i2_pres(
+                            hostname=hostname, user=user, password=password, port=port,
+                            PresentationId=(pres_id or '1'), su=su
+                        )
+                    elif protocol == 'telnet':
+                        telnet_port = int(port) if port else 23
+                        res_run = await provision.telnet_run_i2_pres(
+                            hostname=hostname, port=telnet_port,
+                            PresentationId=(pres_id or '1'),
+                            user=user, password=password
+                        )
+                    elif protocol == 'udp':
+                        udp_port = int(port) if port else 7787
+                        await provision.execute_udp_run_i2_pres(
+                            hostname=hostname, port=udp_port, PresentationId=(pres_id or '1')
+                        )
+                    elif protocol == 'subprocess':
+                        res_run = await provision.subproc_run_i2_pres(PresentationId=(pres_id or '1'))
+                
+                log_result(res_run, cmd_info_run)
+                return
+
             if cat == "Custom Command" or action == "Custom Command":
                 cmd_info = f"{protocol.upper()} Custom: {cmd[:50]}..." if len(cmd) > 50 else f"{protocol.upper()} Custom: {cmd}"
                 res = None
@@ -1894,7 +2046,7 @@ class HomeTab(QtWidgets.QWidget):
         self.start_time = datetime.now()
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.update_dashboard)
-        self.timer.start(1000)
+        self.timer.start(2000)
         self.client_cards = []
 
     def set_scheduler(self, scheduler_instance):
@@ -2169,7 +2321,7 @@ class HomeTab(QtWidgets.QWidget):
             self.empty_state_widget.setVisible(True)
         elif self.stack.currentIndex() == 1:
             self.empty_state_widget.setVisible(False)
-            for client in clients:
+            for i, client in enumerate(clients):
                 card = ClientCard(
                     client, 
                     edit_callback=self._open_edit_client_dialog,
@@ -2177,12 +2329,16 @@ class HomeTab(QtWidgets.QWidget):
                 )
                 self.clients_list_layout.addWidget(card)
                 self.client_cards.append(card)
+                if i % 10 == 9:
+                    QtWidgets.QApplication.processEvents()
         else:
             self.empty_state_widget.setVisible(False)
-            for client in clients:
+            for i, client in enumerate(clients):
                 card = ClientCard(client)
                 self.clients_list_layout.addWidget(card)
                 self.client_cards.append(card)
+                if i % 10 == 9:
+                    QtWidgets.QApplication.processEvents()
 
     def update_dashboard(self):
         if self.scheduler:
@@ -2213,8 +2369,11 @@ class HomeTab(QtWidgets.QWidget):
         countdown = getattr(self.scheduler, 'next_event_countdown', "00:00:00")
         warnings_count = getattr(self.scheduler, 'total_client_warnings', 0)
         
-        all_events = self.scheduler.grab_all_events()
-        total_events = len(all_events)
+        if self.scheduler:
+            all_events = self.scheduler.grab_all_events()
+            total_events = len(all_events)
+        else:
+            total_events = 0
 
         self.sched_table.setItem(0, 0, QtWidgets.QTableWidgetItem("Last Event Name(s)"))
         self.sched_table.setItem(0, 1, QtWidgets.QTableWidgetItem(str(last_event_name)))
@@ -2286,7 +2445,7 @@ class SchedulerTab(QtWidgets.QWidget):
         self.refresh_grid()
         self.update_timer = QtCore.QTimer(self)
         self.update_timer.timeout.connect(self.update_current_time_indicator)
-        self.update_timer.start(100)
+        self.update_timer.start(250)
 
     def _setup_ui(self):
         layout = QtWidgets.QVBoxLayout(self)
@@ -2305,6 +2464,10 @@ class SchedulerTab(QtWidgets.QWidget):
         controls_layout.addWidget(QtWidgets.QLabel("Day Context:"))
         controls_layout.addWidget(self.day_selector)
         controls_layout.addStretch()
+        self.refresh_btn = QtWidgets.QPushButton("⟳ Refresh Timetable")
+        self.refresh_btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        self.refresh_btn.clicked.connect(self.refresh_grid)
+        controls_layout.addWidget(self.refresh_btn)
         self.edit_events_btn = QtWidgets.QPushButton("+ Add/Edit Event")
         self.edit_events_btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
         self.edit_events_btn.clicked.connect(self.open_edit_events_dialog)
@@ -2539,6 +2702,8 @@ class SchedulerTab(QtWidgets.QWidget):
 
         current_day_context = self.day_selector.currentText()
         
+        self.table.setUpdatesEnabled(False)
+        
         for r in range(self.table.rowCount()):
             row_data = self.row_map[r]
             
@@ -2593,10 +2758,16 @@ class SchedulerTab(QtWidgets.QWidget):
                     item.setData(QtCore.Qt.ItemDataRole.UserRole, False)
                 
                 self.table.setItem(r, c, item)
+            
+            if r % 50 == 0:
+                QtWidgets.QApplication.processEvents()
         
+        self.table.setUpdatesEnabled(True)
         self.update_current_time_indicator()
 
     def update_current_time_indicator(self):
+        if not hasattr(self, 'row_map') or not self.row_map:
+            return
         now = QtCore.QDateTime.currentDateTime()
         current_day_name = now.toString("dddd")
         current_h = now.time().hour()
@@ -2725,8 +2896,11 @@ class SchedulerTab(QtWidgets.QWidget):
     def _handle_event_dialog_apply(self, dialog):
         data = dialog.get_data()
         original_name = dialog.original_name
+        load_offset = data.get('LoadOffset', 0)
+        run_offset = data.get('RunOffset', 0)
         
         success = False
+        fail_reason = "Ensure all fields are valid."
         if original_name:
              if self.scheduler.edit_event(original_name, data):
                  success = True
@@ -2736,6 +2910,10 @@ class SchedulerTab(QtWidgets.QWidget):
                  success = True
                  dialog.original_name = data.get('DisplayName')
         
+        if load_offset > run_offset:
+            fail_reason = "LOAD offset cannot occur after run offset. Please adjust LOAD offset to be lower than RUN offset."
+            success = False
+
         if success:
              self.refresh_grid()
              all_events = self.scheduler.grab_all_events()
@@ -2752,7 +2930,7 @@ class SchedulerTab(QtWidgets.QWidget):
 
              QtWidgets.QMessageBox.information(dialog, "Success", "Event applied!")
         else:
-             QtWidgets.QMessageBox.warning(dialog, "Error", "Failed to apply event.")
+             QtWidgets.QMessageBox.warning(dialog, "Error", "Failed to apply event: " + fail_reason)
 
     def open_context_menu(self, position):
         item = self.table.itemAt(position)
@@ -3345,37 +3523,18 @@ class star_controller:
         clients = self.get_configured_clients()
     
 class ClientWorker:
-    _shared_executor: Optional[ThreadPoolExecutor] = None
-    _executor_lock = threading.Lock()
-    
     @classmethod
     def get_shared_executor(cls) -> ThreadPoolExecutor:
-        if cls._shared_executor is None:
-            with cls._executor_lock:
-                if cls._shared_executor is None:
-                    perf = get_perf_config()
-                    worker_count = get_optimal_thread_count(perf['maxThreads'], scale_factor=0.5)
-                    cls._shared_executor = ThreadPoolExecutor(
-                        max_workers=worker_count,
-                        thread_name_prefix="ClientWorker"
-                    )
-                    logger.info(f"ClientWorker shared executor: {worker_count} workers")
-        return cls._shared_executor
+        return provision._get_executor()
     
     @classmethod
     def shutdown_shared_executor(cls):
-        """Shutdown the shared executor on application exit."""
-        if cls._shared_executor:
-            cls._shared_executor.shutdown(wait=False)
-            cls._shared_executor = None
+        pass
     
     def __init__(self, client_id, controller):
         self.client_id = client_id
         self.controller = controller
         self.running = True
-        
-    def _run_task(self, task):
-        pass
     
     def submit_task(self, task):
         if not self.running:
@@ -3462,11 +3621,6 @@ class LogSignalProxy(QtCore.QObject):
 
 
 class EventSchedulerEngine:
-
-    TRIGGER_OFFSETS = {
-        'prepare': 50,
-        'execute': 58,
-    }
 
     def __init__(self, controller):
         self.controller = controller
@@ -3568,7 +3722,8 @@ class EventSchedulerEngine:
         for event in events:
             if event.get('RunAtStartup', False) and event.get('Enabled', True):
                 logger.info(f"Firing startup event: {event.get('DisplayName')}")
-                tasks.append(self._execute_event(event, triggers=None, is_startup=True))
+                target_time = datetime.now()
+                tasks.append(self._execute_event(event, target_time=target_time, is_startup=True))
         
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
@@ -3642,7 +3797,6 @@ class EventSchedulerEngine:
             for cf in cc_elem.findall('ClientConfig'):
                 raw_id = cf.get('id')
                 client_ref = cf.get('client')
-                
                 config = {
                     'action': cf.find('Action').text if cf.find('Action') is not None else "LoadRun",
                     'flavor': cf.find('Flavor').text if cf.find('Flavor') is not None else "",
@@ -3653,14 +3807,24 @@ class EventSchedulerEngine:
                     'su': cf.find('SU').text if cf.find('SU') is not None else "",
                     'ldl_state': cf.find('LDLState').text if cf.find('LDLState') is not None else ""
                 }
-                
+                sep_el = cf.find('SeparateLoadRun')
+                config['separate_load_run'] = (sep_el.text.lower() == 'true') if sep_el is not None and sep_el.text else False
+                load_off_el = cf.find('LoadOffset')
+                try:
+                    config['load_offset'] = int(load_off_el.text) if load_off_el is not None and load_off_el.text else -20
+                except Exception:
+                    config['load_offset'] = -20
+                run_off_el = cf.find('RunOffset')
+                try:
+                    config['run_offset'] = int(run_off_el.text) if run_off_el is not None and run_off_el.text else -12
+                except Exception:
+                    config['run_offset'] = -12
                 if client_ref:
                     config['client_id'] = client_ref
                     config['action_guid'] = raw_id
-                    event['client_config'][raw_id] = config
                 else:
                     config['client_id'] = raw_id
-                    event['client_config'][raw_id] = config
+                event['client_config'][raw_id] = config
         flavors_elem = event_elem.find('flavor')
         event['flavor'] = {}
         if flavors_elem is not None:
@@ -3706,33 +3870,19 @@ class EventSchedulerEngine:
         if not cron_kwargs:
             return []
 
-        prepare_job_id = f"event_{display_name}_prepare"
+        job_id = f"event_{display_name}"
         try:
             self._scheduler.add_job(
                 self._trigger_event_wrapper,
-                CronTrigger(second=self.TRIGGER_OFFSETS['prepare'], **cron_kwargs),
-                id=prepare_job_id,
-                args=[event, 'prepare'],
+                CronTrigger(second=0, **cron_kwargs),
+                id=job_id,
+                args=[event],
                 replace_existing=True,
-                name=f"{display_name} (prepare)"
+                name=display_name
             )
-            job_ids.append(prepare_job_id)
+            job_ids.append(job_id)
         except Exception as e:
-            logger.error(f"Failed to schedule prepare job for {display_name}: {e}")
-
-        execute_job_id = f"event_{display_name}_execute"
-        try:
-            self._scheduler.add_job(
-                self._trigger_event_wrapper,
-                CronTrigger(second=self.TRIGGER_OFFSETS['execute'], **cron_kwargs),
-                id=execute_job_id,
-                args=[event, 'execute'],
-                replace_existing=True,
-                name=f"{display_name} (execute)"
-            )
-            job_ids.append(execute_job_id)
-        except Exception as e:
-            logger.error(f"Failed to schedule execute job for {display_name}: {e}")
+            logger.error(f"Failed to schedule job for {display_name}: {e}")
             
         return job_ids
         
@@ -3793,16 +3943,7 @@ class EventSchedulerEngine:
             'month': month_str,
         }
         
-    def _trigger_event_wrapper(self, event: Dict, phase: str):
-        t = threading.Thread(
-            target=self._fire_background_event,
-            args=(event, phase),
-            daemon=True,
-            name=f"evt_{event.get('DisplayName')}_{phase}"
-        )
-        t.start()
-        
-    def _fire_background_event(self, event: Dict, phase: str):
+    def _trigger_event_wrapper(self, event: Dict):
         try:
             now = datetime.now()
             target_time = (now + timedelta(minutes=1)).replace(second=0, microsecond=0)
@@ -3811,17 +3952,10 @@ class EventSchedulerEngine:
                 week_num = (target_time.day - 1) // 7 + 1
                 if str(week_num) not in weeks:
                     return
-                    
-            triggers = {
-                'trigger_i2_loadrun': phase == 'prepare',
-                'trigger_load_i1': phase == 'prepare',
-                'trigger_run_i1': phase == 'execute',
-                'target_time': target_time
-            }
 
             if self._loop and self._loop.is_running():
-                 asyncio.run_coroutine_threadsafe(
-                    self._execute_event(event, triggers),
+                asyncio.run_coroutine_threadsafe(
+                    self._execute_event(event, target_time=target_time),
                     self._loop
                 )
             else:
@@ -3830,17 +3964,14 @@ class EventSchedulerEngine:
         except Exception as e:
             logger.error(f"Error in trigger wrapper: {e}")
             
-    async def _execute_event(self, event: Dict, triggers: Optional[Dict] = None, is_startup: bool = False):
+    async def _execute_event(self, event: Dict, target_time: Optional[datetime] = None, is_startup: bool = False):
         try:
             self.last_event_name = event.get('DisplayName', 'Unknown')
             now = datetime.now()
             self.last_event_time = now.strftime("%I:%M:%S %p")
-            if triggers and 'target_time' in triggers:
-                target = triggers['target_time']
-                diff = (now - target).total_seconds()
+            if target_time:
+                diff = (now - target_time).total_seconds()
                 self.last_event_offset = diff
-                if abs(diff) > 6:
-                    logger.warning(f"Event '{self.last_event_name}' offset: {diff:.2f}s from scheduled time")
             else:
                 self.last_event_offset = 0.0
             client_configs = event.get('client_config', {})
@@ -3865,7 +3996,7 @@ class EventSchedulerEngine:
             if not clients:
                 logger.warning("No configured clients to dispatch event to")
                 return
-            is_manual = (triggers is None and not is_startup)
+            is_manual = (target_time is None and not is_startup)
             tasks = []
             
             client_map = {}
@@ -3884,7 +4015,7 @@ class EventSchedulerEngine:
                 if not client:
                     continue
 
-                tasks.append(self._dispatch_client_action(client, conf, event, triggers, is_manual))
+                tasks.append(self._dispatch_client_action(client, conf, event, target_time, is_manual))
                 
             if tasks:
                 await asyncio.gather(*tasks, return_exceptions=True)
@@ -3892,7 +4023,7 @@ class EventSchedulerEngine:
         except Exception as e:
             logger.error(f"Error executing event: {e}")
             
-    async def _dispatch_client_action(self, client: Dict, conf: Dict, event: Dict, triggers: Optional[Dict], is_manual: bool):
+    async def _dispatch_client_action(self, client: Dict, conf: Dict, event: Dict, target_time: Optional[datetime], is_manual: bool):
         cid = client.get('id') or client.get('star')
         creds = client.get('credentials', {})
         hostname = creds.get('hostname')
@@ -3912,24 +4043,36 @@ class EventSchedulerEngine:
         su = creds.get('su', 'dgadmin') if is_i1 else creds.get('su', None)
         registry = provision.get_connection_registry()
         use_persistent = registry.get_session(cid) is not None
-        if triggers and not is_manual:
-            trigger_i2_loadrun = triggers.get('trigger_i2_loadrun', False)
-            trigger_load_i1 = triggers.get('trigger_load_i1', False)
-            trigger_run_i1 = triggers.get('trigger_run_i1', False)
-            
-            if is_i1:
-                if action == "Load" and not trigger_load_i1:
-                    return
-                elif action == "Run" and not trigger_run_i1:
-                    return
-                elif action == "LoadRun":
-                    if not trigger_load_i1:
-                        return
+        
+        separate_load_run = conf.get('separate_load_run', False)
+        load_offset = int(conf.get('load_offset', -20))
+        run_offset = int(conf.get('run_offset', -12))
+        
+        if action == "LoadRun" and target_time and not is_manual:
+            now = datetime.now()
+            if separate_load_run:
+                load_fire_time = target_time + timedelta(seconds=load_offset)
+                run_fire_time = target_time + timedelta(seconds=run_offset)
+                
+                load_delay = (load_fire_time - now).total_seconds()
+                if load_delay > 0:
+                    await asyncio.sleep(load_delay)
+                logger.info(f"Dispatching Load to client {cid} with command: '{cmd}'")
+                await self._execute_load_action(client, conf, event, flavor, pres_id, duration, is_i1, su, use_persistent)
+                
+                now = datetime.now()
+                run_delay = (run_fire_time - now).total_seconds()
+                if run_delay > 0:
+                    await asyncio.sleep(run_delay)
+                logger.info(f"Dispatching Run to client {cid} with command: '{cmd}'")
+                await self._execute_run_action(client, conf, event, pres_id, is_i1, su, use_persistent)
+                return
             else:
-                if action in ("LoadRun", "Load", "Run") and not trigger_i2_loadrun:
-                    return
+                logger.info(f"Dispatching LoadRun to client {cid} with command: '{cmd}'")
+                await self._execute_loadrun_action(client, conf, event, flavor, pres_id, duration, is_i1, su, use_persistent)
+                return
                     
-        logger.info(f"Dispatching action '{action}' to client {cid}")
+        logger.info(f"Dispatching action '{action}' to client {cid} with command '{cmd}'")
         
         try:
             if action == "Custom Command":
@@ -3957,14 +4100,20 @@ class EventSchedulerEngine:
                                                    port, ldl_cmd, su, use_persistent)
                 self._log_result(cid, res, f"{protocol.upper()} i1 LDL state={target_state}")
                 
-            elif action in ("LoadRun", "Load", "Run"):
-                await self._execute_presentation_action(
-                    client, conf, event, action, flavor, pres_id, duration,
-                    is_i1, su, use_persistent
-                )
+            elif action == "LoadRun":
+                await self._execute_loadrun_action(client, conf, event, flavor, pres_id, duration, is_i1, su, use_persistent)
                 
         except Exception as e:
             logger.error(f"Error dispatching to {cid}: {e}")
+
+    async def _execute_loadrun_action(self, client, conf, event, flavor, pres_id, duration, is_i1, su, use_persistent):
+        await self._execute_presentation_action(client, conf, event, "LoadRun", flavor, pres_id, duration, is_i1, su, use_persistent)
+
+    async def _execute_load_action(self, client, conf, event, flavor, pres_id, duration, is_i1, su, use_persistent):
+        await self._execute_presentation_action(client, conf, event, "Load", flavor, pres_id, duration, is_i1, su, use_persistent)
+
+    async def _execute_run_action(self, client, conf, event, pres_id, is_i1, su, use_persistent):
+        await self._execute_presentation_action(client, conf, event, "Run", None, pres_id, 0, is_i1, su, use_persistent)
             
     async def _execute_command(self, protocol: str, cid: str, hostname: str, 
                                 user: str, password: str, port: int, 
@@ -4193,15 +4342,14 @@ class EventSchedulerEngine:
         next_name = None
         
         for job in jobs:
-            if job.id.startswith('event_') and '_prepare' in job.id:
+            if job.id.startswith('event_') and job.id != 'timetable_watcher':
                 if job.next_run_time:
                     if next_run is None or job.next_run_time < next_run:
                         next_run = job.next_run_time
-                        next_name = job.id.replace('event_', '').replace('_prepare', '')
+                        next_name = job.id.replace('event_', '')
                         
         if next_run:
-            actual_time = next_run + timedelta(seconds=10)
-            actual_time = actual_time.replace(second=0, microsecond=0) + timedelta(minutes=1)
+            actual_time = next_run.replace(second=0, microsecond=0) + timedelta(minutes=1)
 
             if hasattr(actual_time, 'tzinfo') and actual_time.tzinfo is not None:
                 actual_time = actual_time.replace(tzinfo=None)
@@ -4225,7 +4373,8 @@ class EventSchedulerEngine:
         return self._loop
         
     async def _execute_single_event(self, event_data: Dict):
-        await self._execute_event(event_data, triggers=None, is_startup=False)
+        target_time = datetime.now()
+        await self._execute_event(event_data, target_time=target_time, is_startup=False)
     
     def grab_all_events(self) -> List[Dict]:
         with self._cache_lock:
@@ -4411,6 +4560,13 @@ class EventSchedulerEngine:
                 default = 'LoadRun' if key == 'action' else ''
                 elem = ET.SubElement(cc, tag)
                 elem.text = str(config.get(key, default))
+            
+            sep_elem = ET.SubElement(cc, 'SeparateLoadRun')
+            sep_elem.text = str(config.get('separate_load_run', False))
+            load_off_elem = ET.SubElement(cc, 'LoadOffset')
+            load_off_elem.text = str(config.get('load_offset', -20))
+            run_off_elem = ET.SubElement(cc, 'RunOffset')
+            run_off_elem.text = str(config.get('run_offset', -12))
                 
         c_container = ET.SubElement(event_elem, 'clients')
         for c in event_data.get('clients', []):

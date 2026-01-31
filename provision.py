@@ -20,19 +20,19 @@ logger = logging.getLogger("starscheduler.provision")
 
 i2exec = "C:\\Program Files (x86)\\TWC\\I2\\exec.exe"
 
-def _get_optimal_thread_count(max_threads: int = 16) -> int:
+def _get_optimal_thread_count(max_threads: int = 4) -> int:
     """Calculate optimal thread count based on CPU cores and config limit.
-    Uses conservative allocation: min(cpu_cores, max_threads, 8) for I/O-bound work.
+    Uses minimal allocation for I/O-bound work.
     """
     try:
         cpu_count = os.cpu_count() or 2
-        optimal = min(cpu_count, max_threads, 8)
-        return max(2, optimal)
+        optimal = min(cpu_count, max_threads, 4)
+        return max(1, optimal)
     except Exception:
-        return 4
+        return 2
 
 _executor: Optional[ThreadPoolExecutor] = None
-_executor_max_workers: int = 16
+_executor_max_workers: int = 4
 
 def _get_executor() -> ThreadPoolExecutor:
     """Get or create the shared thread pool executor (lazy initialization)."""

@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <timetable>
     <event>
-        <DisplayName>LDL</DisplayName>
+        <DisplayName>LDL &amp; Sidebar</DisplayName>
         <Category>Cue Presentation</Category>
         <TargetID />
         <CustomCommand />
@@ -48,17 +48,17 @@
         <RunAtStartup>True</RunAtStartup>
         <Enabled>True</Enabled>
         <ClientConfigs>
-            <ClientConfig id="i2xd_172_16_1_31">
+            <ClientConfig id="f009d1bb8dfff563c8156001ab53fc8c" client="i2xd_172_16_1_31">
                 <Action>LoadRun</Action>
                 <Flavor>domestic/ldlssp</Flavor>
                 <PresentationID>ldl1</PresentationID>
-                <Duration>75</Duration>
+                <Duration>120</Duration>
                 <Logo />
                 <Command />
                 <SU />
                 <LDLState />
             </ClientConfig>
-            <ClientConfig id="i1_172_16_1_39">
+            <ClientConfig id="6f1e09c12555754f23cdff54c74ccc05" client="i1_172_16_1_39">
                 <Action>LDL (On/Off)</Action>
                 <Flavor />
                 <PresentationID />
@@ -68,17 +68,27 @@
                 <SU />
                 <LDLState>1</LDLState>
             </ClientConfig>
+            <ClientConfig id="aaaab64aa2486f126d64846673161629" client="i2xd_172_16_1_31">
+                <Action>LoadRun</Action>
+                <Flavor>domestic/sidebarssp</Flavor>
+                <PresentationID>sidebar1</PresentationID>
+                <Duration>120</Duration>
+                <Logo />
+                <Command />
+                <SU />
+                <LDLState />
+            </ClientConfig>
         </ClientConfigs>
         <clients>
             <client>i2xd_172_16_1_31</client>
             <client>i1_172_16_1_39</client>
         </clients>
         <flavor>
-            <flavor client="i2xd_172_16_1_31">domestic/ldlssp</flavor>
+            <flavor client="i2xd_172_16_1_31">domestic/sidebarssp</flavor>
         </flavor>
     </event>
     <event>
-        <DisplayName>i1 lf</DisplayName>
+        <DisplayName>Cancel LDL and SideBar</DisplayName>
         <Category>Cue Presentation</Category>
         <TargetID />
         <CustomCommand />
@@ -122,13 +132,45 @@
             <Month>11</Month>
             <Month>12</Month>
         </Months>
+        <RunAtStartup>False</RunAtStartup>
         <Enabled>True</Enabled>
+        <ClientConfigs>
+            <ClientConfig id="ae07036a86f779e15dcf0681738c461c" client="i2xd_172_16_1_31">
+                <Action>Cancel</Action>
+                <Flavor />
+                <PresentationID>ldl1</PresentationID>
+                <Duration />
+                <Logo />
+                <Command />
+                <SU />
+                <LDLState />
+            </ClientConfig>
+            <ClientConfig id="4d8b6280823ea5784eab34e3f3d25450" client="i2xd_172_16_1_31">
+                <Action>Cancel</Action>
+                <Flavor />
+                <PresentationID>sidebar1</PresentationID>
+                <Duration />
+                <Logo />
+                <Command />
+                <SU />
+                <LDLState />
+            </ClientConfig>
+            <ClientConfig id="4aafe777cc9aefe19ca0ef07704b96e8" client="i1_172_16_1_39">
+                <Action>LDL (On/Off)</Action>
+                <Flavor />
+                <PresentationID />
+                <Duration />
+                <Logo />
+                <Command />
+                <SU />
+                <LDLState>0</LDLState>
+            </ClientConfig>
+        </ClientConfigs>
         <clients>
-            <client>i1</client>
+            <client>i2xd_172_16_1_31</client>
+            <client>i1_172_16_1_39</client>
         </clients>
-        <flavor>
-            <flavor client="i1">M</flavor>
-        </flavor>
+        <flavor />
     </event>
     <event>
         <DisplayName>azul</DisplayName>
@@ -174,7 +216,7 @@
         <RunAtStartup>False</RunAtStartup>
         <Enabled>True</Enabled>
         <ClientConfigs>
-            <ClientConfig id="i2xd_172_16_1_31">
+            <ClientConfig id="69680b6c5bad805e4c107c7486fe383e" client="i2xd_172_16_1_31">
                 <Action>LoadRun</Action>
                 <Flavor>domestic/azul</Flavor>
                 <PresentationID>1</PresentationID>
@@ -183,6 +225,9 @@
                 <Command />
                 <SU />
                 <LDLState />
+                <SeparateLoadRun>True</SeparateLoadRun>
+                <LoadOffset>-20</LoadOffset>
+                <RunOffset>-12</RunOffset>
             </ClientConfig>
         </ClientConfigs>
         <clients>
@@ -190,67 +235,6 @@
         </clients>
         <flavor>
             <flavor client="i2xd_172_16_1_31">domestic/azul</flavor>
-        </flavor>
-    </event>
-    <event>
-        <DisplayName>XDSidebar</DisplayName>
-        <Category>Cue Presentation</Category>
-        <TargetID />
-        <CustomCommand />
-        <MinuteInterval>9</MinuteInterval>
-        <TenMinuteInterval>
-            <TenMinute>00</TenMinute>
-            <TenMinute>10</TenMinute>
-            <TenMinute>20</TenMinute>
-            <TenMinute>30</TenMinute>
-            <TenMinute>40</TenMinute>
-            <TenMinute>50</TenMinute>
-        </TenMinuteInterval>
-        <Hours />
-        <Days>
-            <Day>Monday</Day>
-            <Day>Tuesday</Day>
-            <Day>Wednesday</Day>
-            <Day>Thursday</Day>
-            <Day>Friday</Day>
-            <Day>Saturday</Day>
-            <Day>Sunday</Day>
-        </Days>
-        <Weeks>
-            <Week>1</Week>
-            <Week>2</Week>
-            <Week>3</Week>
-            <Week>4</Week>
-            <Week>5</Week>
-        </Weeks>
-        <Months>
-            <Month>1</Month>
-            <Month>2</Month>
-            <Month>3</Month>
-            <Month>4</Month>
-            <Month>5</Month>
-            <Month>6</Month>
-            <Month>7</Month>
-            <Month>8</Month>
-            <Month>9</Month>
-            <Month>10</Month>
-            <Month>11</Month>
-            <Month>12</Month>
-        </Months>
-        <RunAtStartup>True</RunAtStartup>
-        <Enabled>True</Enabled>
-        <ClientConfigs>
-            <ClientConfig id="i2xd_172_16_1_31">
-                <Flavor>domestic/sidebarssp</Flavor>
-                <PresentationID>sidebar1</PresentationID>
-                <Duration>6767</Duration>
-            </ClientConfig>
-        </ClientConfigs>
-        <clients>
-            <client>i2xd_172_16_1_31</client>
-        </clients>
-        <flavor>
-            <flavor client="i2xd_172_16_1_31">domestic/sidebarssp</flavor>
         </flavor>
     </event>
     <event>
@@ -297,15 +281,18 @@
         <RunAtStartup>False</RunAtStartup>
         <Enabled>True</Enabled>
         <ClientConfigs>
-            <ClientConfig id="i2xd_172_16_1_31">
+            <ClientConfig id="e9595d5be334d9e84d1df9d25035f310" client="i2xd_172_16_1_31">
                 <Action>LoadRun</Action>
                 <Flavor>domestic/V</Flavor>
-                <Presentationid>1</Presentationid>
+                <PresentationID />
                 <Duration>75</Duration>
                 <Logo />
                 <Command />
-                <Su />
-                <Ldlstate />
+                <SU />
+                <LDLState />
+                <SeparateLoadRun>True</SeparateLoadRun>
+                <LoadOffset>-20</LoadOffset>
+                <RunOffset>-12</RunOffset>
             </ClientConfig>
         </ClientConfigs>
         <clients>
@@ -359,15 +346,18 @@
         <RunAtStartup>False</RunAtStartup>
         <Enabled>True</Enabled>
         <ClientConfigs>
-            <ClientConfig id="i2xd_172_16_1_31">
+            <ClientConfig id="4ca590ca850b910ea961607d9f5229f3" client="i2xd_172_16_1_31">
                 <Action>LoadRun</Action>
                 <Flavor>domestic/N</Flavor>
-                <Presentationid />
+                <PresentationID />
                 <Duration>75</Duration>
                 <Logo />
                 <Command />
-                <Su />
-                <Ldlstate />
+                <SU />
+                <LDLState />
+                <SeparateLoadRun>True</SeparateLoadRun>
+                <LoadOffset>-20</LoadOffset>
+                <RunOffset>-12</RunOffset>
             </ClientConfig>
         </ClientConfigs>
         <clients>
@@ -378,7 +368,7 @@
         </flavor>
     </event>
     <event>
-        <DisplayName>Cancel LDL and SideBar</DisplayName>
+        <DisplayName>i1 lf</DisplayName>
         <Category>Cue Presentation</Category>
         <TargetID />
         <CustomCommand />
@@ -425,97 +415,25 @@
         <RunAtStartup>False</RunAtStartup>
         <Enabled>True</Enabled>
         <ClientConfigs>
-            <ClientConfig id="i2xd_172_16_1_31">
-                <Action>Cancel</Action>
-                <Flavor />
-                <Presentationid>ldl1</Presentationid>
+            <ClientConfig id="5732706a6f29c59f3c252e92c0b5f5f1" client="i1_172_16_1_39">
+                <Action>LoadRun</Action>
+                <Flavor>M</Flavor>
+                <PresentationID />
                 <Duration />
                 <Logo />
                 <Command />
-                <Su />
-                <Ldlstate />
+                <SU />
+                <LDLState />
+                <SeparateLoadRun>True</SeparateLoadRun>
+                <LoadOffset>-8</LoadOffset>
+                <RunOffset>-2</RunOffset>
             </ClientConfig>
         </ClientConfigs>
         <clients>
-            <client>i2xd_172_16_1_31</client>
-            <client>i2xd_172_16_1_31</client>
-        </clients>
-        <flavor />
-    </event>
-    <event>
-        <DisplayName>chudfuck</DisplayName>
-        <Category>Cue Presentation</Category>
-        <TargetID />
-        <CustomCommand />
-        <MinuteInterval>4</MinuteInterval>
-        <TenMinuteInterval>
-            <TenMinute>00</TenMinute>
-            <TenMinute>10</TenMinute>
-            <TenMinute>20</TenMinute>
-            <TenMinute>30</TenMinute>
-            <TenMinute>40</TenMinute>
-            <TenMinute>50</TenMinute>
-        </TenMinuteInterval>
-        <Hours />
-        <Days>
-            <Day>Monday</Day>
-            <Day>Tuesday</Day>
-            <Day>Wednesday</Day>
-            <Day>Thursday</Day>
-            <Day>Friday</Day>
-            <Day>Saturday</Day>
-            <Day>Sunday</Day>
-        </Days>
-        <Weeks>
-            <Week>1</Week>
-            <Week>2</Week>
-            <Week>3</Week>
-            <Week>4</Week>
-            <Week>5</Week>
-        </Weeks>
-        <Months>
-            <Month>1</Month>
-            <Month>2</Month>
-            <Month>3</Month>
-            <Month>4</Month>
-            <Month>5</Month>
-            <Month>6</Month>
-            <Month>7</Month>
-            <Month>8</Month>
-            <Month>9</Month>
-            <Month>10</Month>
-            <Month>11</Month>
-            <Month>12</Month>
-        </Months>
-        <RunAtStartup>False</RunAtStartup>
-        <Enabled>False</Enabled>
-        <ClientConfigs>
-            <ClientConfig id="f7265091dc6f0958cf24825b126481c7" client="i2xd_172_16_1_31">
-                <Action>LoadRun</Action>
-                <Flavor>domestic/April 19 2013 test</Flavor>
-                <PresentationID>1</PresentationID>
-                <Duration>90</Duration>
-                <Logo />
-                <Command />
-                <SU />
-                <LDLState />
-            </ClientConfig>
-            <ClientConfig id="e9c7a64891882e4fb77c29e077aebe6f" client="i2xd_172_16_1_31">
-                <Action>LoadRun</Action>
-                <Flavor>domestic/HD Enhanced LOT8 Fullscreen Backless</Flavor>
-                <PresentationID>3</PresentationID>
-                <Duration>90</Duration>
-                <Logo />
-                <Command />
-                <SU />
-                <LDLState />
-            </ClientConfig>
-        </ClientConfigs>
-        <clients>
-            <client>i2xd_172_16_1_31</client>
+            <client>i1_172_16_1_39</client>
         </clients>
         <flavor>
-            <flavor client="i2xd_172_16_1_31">domestic/HD Enhanced LOT8 Fullscreen Backless</flavor>
+            <flavor client="i1_172_16_1_39">M</flavor>
         </flavor>
     </event>
 </timetable>
