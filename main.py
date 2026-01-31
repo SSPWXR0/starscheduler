@@ -4071,7 +4071,7 @@ class EventSchedulerEngine:
 
                 detail_string = {
                     "i2": f"{action}(flavor='{flavor}',presentationId='{pres_id}',duration={duration}) with load_offset={load_offset}, run_offset={run_offset}",
-                    "i1": f"flavor='{flavor}', pres_id='{pres_id}'","
+                    "i1": f"flavor='{flavor}'",
                 }
                 
                 load_delay = (load_fire_time - now).total_seconds()
@@ -4091,8 +4091,14 @@ class EventSchedulerEngine:
                 logger.info(f"Dispatching cue command to {protocol.upper()} {star_type.upper()} client {cid} with {detail_string.get(star_type.removesuffix('xd').removesuffix('jr'), '')}")
                 await self._execute_loadrun_action(client, conf, event, flavor, pres_id, duration, is_i1, su, use_persistent)
                 return
+        
+        if action == "LDL (On/Off)" and is_i1:
+            logger.info(f"Dispatching LDL command to {protocol.upper()} {star_type.upper()} client {cid} with state={ldl_state}")
+        
+        if action == "Custom Command":
+            logger.info(f"Dispatching Custom Command to {protocol.upper()} {star_type.upper()} client {cid} with command {cmd[:50]}")
                     
-        logger.info(f"Dispatching action '{action}' to {protocol.upper()} {star_type.upper()} client {cid} with command '{cmd}'")
+        logger.info(f"Dispatching action '{action}' to {protocol.upper()} {star_type.upper()} client {cid}")
         
         try:
             if action == "Custom Command":
