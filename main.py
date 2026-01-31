@@ -696,6 +696,16 @@ class ClientActionCard(QtWidgets.QFrame):
         self.add_field(lay, "Command:", "command", self.ui_custom, width=250)
         self.add_field(lay, "SU User:", "su", self.ui_custom)
         self.param_stack.addWidget(self.page_custom)
+        
+        self.page_cancel = QtWidgets.QWidget()
+        self.ui_cancel = {}
+        lay = QtWidgets.QHBoxLayout(self.page_cancel)
+        lay.setContentsMargins(0,0,0,0)
+        lay.setSpacing(10)
+        self.add_field(lay, "PresID:", "pres_id", self.ui_cancel)
+        lay.addStretch()
+        self.param_stack.addWidget(self.page_cancel)
+
         self.page_ldl = QtWidgets.QWidget()
         self.ui_ldl = {}
         lay = QtWidgets.QHBoxLayout(self.page_ldl)
@@ -790,6 +800,8 @@ class ClientActionCard(QtWidgets.QFrame):
         else:
             if action == "LoadRun":
                 self.param_stack.setCurrentWidget(self.page_i2_load)
+            elif action == "Cancel":
+                self.param_stack.setCurrentWidget(self.page_cancel)
             else:
                 self.param_stack.setCurrentWidget(self.param_stack.widget(0))
 
@@ -810,11 +822,11 @@ class ClientActionCard(QtWidgets.QFrame):
         if 'flavor' in self.ui_i1_load: self.ui_i1_load['flavor'].setText(self.config.get('flavor', ''))
         if 'command' in self.ui_custom: self.ui_custom['command'].setText(self.config.get('command', ''))
         if 'su' in self.ui_custom: self.ui_custom['su'].setText(self.config.get('su', ''))
+        if 'pres_id' in self.ui_cancel: self.ui_cancel['pres_id'].setText(self.config.get('presentation_id', '1'))
         if 'state' in self.ui_ldl:
             val = self.config.get('ldl_state', '1')
             self.ui_ldl['state'].setCurrentIndex(0 if val == '1' else 1)
-        
-        # Set values regardless of checkbox state so they are 'ready' if checked
+
         self.load_offset_spin.setValue(int(self.config.get('load_offset', -20)))
         self.run_offset_spin.setValue(int(self.config.get('run_offset', -12)))
         
@@ -843,6 +855,8 @@ class ClientActionCard(QtWidgets.QFrame):
         elif w == self.page_custom:
             cfg['command'] = self.ui_custom['command'].text()
             cfg['su'] = self.ui_custom['su'].text()
+        elif w == self.page_cancel:
+            cfg['presentation_id'] = self.ui_cancel['pres_id'].text()
         elif w == self.page_ldl:
             cfg['ldl_state'] = '1' if self.ui_ldl['state'].currentIndex() == 0 else '0'
         
@@ -1781,29 +1795,30 @@ class QuickTimeEventTab(QtWidgets.QWidget):
                 return
 
             if cat == "Cancel Presentation" or action == "Cancel":
-                cmd_info = f"{protocol.upper()} Cancel pres_id={pres_id}"
+                final_id = pres_id if pres_id else ('local' if is_i1 else '1')
+                cmd_info = f"{protocol.upper()} Cancel pres_id={final_id}"
                 res = None
                 if protocol == 'ssh':
                     if star_type.startswith('i2'):
                         res = await provision.execute_ssh_command(
                             hostname=hostname, user=user, password=password, port=port,
-                            command=f'"{provision.i2exec}" cancelPres(PresentationId="{pres_id}")', su=su
+                            command=f'"{provision.i2exec}" cancelPres(PresentationId="{final_id}")', su=su
                         )
                 elif protocol == 'telnet':
                     telnet_port = int(port) if port else 23
                     if star_type.startswith('i2'):
                         res = await provision.telnet_cancel_i2_pres(
                             hostname=hostname, port=telnet_port,
-                            PresentationId=pres_id, user=user, password=password
+                            PresentationId=final_id, user=user, password=password
                         )
                 elif protocol == 'udp':
                     udp_port = int(port) if port else 7787
                     if star_type.startswith('i2'):
                         await provision.execute_udp_cancel_i2_pres(
-                            hostname=hostname, port=udp_port, PresentationId=pres_id
+                            hostname=hostname, port=udp_port, PresentationId=final_id
                         )
                 elif protocol == 'subprocess':
-                    res = await provision.subproc_cancel_i2_pres(PresentationId=pres_id)
+                    res = await provision.subproc_cancel_i2_pres(PresentationId=final_id)
                 log_result(res, cmd_info)
                 return
             
@@ -4053,26 +4068,31 @@ class EventSchedulerEngine:
             if separate_load_run:
                 load_fire_time = target_time + timedelta(seconds=load_offset)
                 run_fire_time = target_time + timedelta(seconds=run_offset)
+
+                detail_string = {
+                    "i2": f"{action}(flavor='{flavor}',presentationId='{pres_id}',duration={duration}) with load_offset={load_offset}, run_offset={run_offset}",
+                    "i1": f"flavor='{flavor}', pres_id='{pres_id}'","
+                }
                 
                 load_delay = (load_fire_time - now).total_seconds()
                 if load_delay > 0:
                     await asyncio.sleep(load_delay)
-                logger.info(f"Dispatching Load to client {cid} with command: '{cmd}'")
+                logger.info(f"Dispatching Load to {protocol.upper()} {star_type.upper()} client {cid} with {detail_string.get(star_type.removesuffix('xd').removesuffix('jr'), '')}")
                 await self._execute_load_action(client, conf, event, flavor, pres_id, duration, is_i1, su, use_persistent)
                 
                 now = datetime.now()
                 run_delay = (run_fire_time - now).total_seconds()
                 if run_delay > 0:
                     await asyncio.sleep(run_delay)
-                logger.info(f"Dispatching Run to client {cid} with command: '{cmd}'")
+                logger.info(f"Dispatching Run to {protocol.upper()} {star_type.upper()} client {cid} with {detail_string.get(star_type.removesuffix('xd').removesuffix('jr'), '')}")
                 await self._execute_run_action(client, conf, event, pres_id, is_i1, su, use_persistent)
                 return
             else:
-                logger.info(f"Dispatching LoadRun to client {cid} with command: '{cmd}'")
+                logger.info(f"Dispatching cue command to {protocol.upper()} {star_type.upper()} client {cid} with {detail_string.get(star_type.removesuffix('xd').removesuffix('jr'), '')}")
                 await self._execute_loadrun_action(client, conf, event, flavor, pres_id, duration, is_i1, su, use_persistent)
                 return
                     
-        logger.info(f"Dispatching action '{action}' to client {cid} with command '{cmd}'")
+        logger.info(f"Dispatching action '{action}' to {protocol.upper()} {star_type.upper()} client {cid} with command '{cmd}'")
         
         try:
             if action == "Custom Command":
