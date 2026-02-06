@@ -11,8 +11,8 @@ StarScheduler is a comprehensive control and scheduling application designed for
 *   **Multiple Protocols**:
     *   **SSH**: Standard secure remote control. Leveraging `exec.exe` on the I2 and `runomni` on the I1
     *   **Subprocess**: Local execution (e.g., for `exec.exe` on the I2).
-    *   **UDP Multicast**: Experimental support for network ingest via `MsgIngestor` on the I2 and `receiverd` on the I1.
-    *   **Telnet**: Legacy protocol for use with I1s and I2s with a telnet server enabled.
+    *   **UDP Multicast**: Experimental support for network ingest via `MsgIngestor` on the I2 and `receiverd` on the I1. It... doesn't actually work.
+    *   **Telnet**: Fast, but insecure protocol for use with WeatherStar XL systems (commands currently not implemented), OR I1s and I2s with a telnet server enabled.
 *   **Quick Time Event**: Immediately execute specific presentation flavors or commands on one or multiple clients.
 *   **Dashboard**: Real-time monitoring of system status, uptime, and next scheduled events.
 *   **Modern UI**: Built with PyQt6 with a dark theme connection manager.
@@ -33,17 +33,6 @@ StarScheduler is a comprehensive control and scheduling application designed for
     ```
 
 2.  Install dependencies:
-    Windows:
-    ```bash
-    requirements.cmd
-    ```
-
-    Linux, MacOS, and FreeBSD:
-    ```bash
-    bash requirements.sh
-    ```
-    
-    im smart lol just give me the dependencies:
     ```bash
     pip install -r requirements.txt
     ```
@@ -56,16 +45,8 @@ Run the main application:
   ```bash
   python main.py
   ```
-
-- **Windows** (detaching from command prompt):
-  ```bash
-  startd.cmd
-  ```
-
-- **Linux, macOS, and FreeBSD** (detaching from terminal):
-  ```bash
-  bash startd.sh
-  ```
+Note: If you have multiple Python versions installed, please install dependencies via `python3.x -m pip install -r requirements.txt`,
+Then run the application with `python3.x main.py`  where X is your intended version number.
 
 ### Command Line Arguments
 
@@ -80,4 +61,4 @@ Run the main application:
 
 ## Disclaimer
 
-This software is a hobby project intended for use with legacy/decommissioned hardware It is not affiliated with The Weather Channel or its parent companies.
+This software is a hobby project intended for use with legacy/decommissioned hardware. It is not affiliated with The Weather Channel or its parent companies.

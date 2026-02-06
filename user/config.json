@@ -17,12 +17,25 @@
             "protocol": "ssh",
             "credentials": {
                 "hostname": "172.16.1.31",
-                "user": "rai",
+                "user": "I2Admin",
                 "su": null,
                 "password": "sspwxr",
                 "port": 22
             },
             "id": "i2xd_172_16_1_31"
+        },
+		{
+            "id": "i2jr_172_16_1_32",
+            "star": "i2jr",
+            "displayName": "IntelliStar 2 Jr",
+            "protocol": "ssh",
+            "credentials": {
+                "hostname": "172.16.1.32",
+                "port": 22,
+                "user": "I2Admin",
+                "password": "sspwxr",
+                "su": null
+            }
         },
         {
             "id": "i1_172_16_1_39",
